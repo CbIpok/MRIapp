@@ -1,5 +1,5 @@
 function displaySelectedCallback(listBox, maskList)
-    % Получаем выбранный элемент из списка файлов.
+    % Получаем выбранный элемент из списка файлов
     selectedItems = listBox.Value;
     if isempty(selectedItems)
         uialert(listBox.Parent, 'Не выбран ни один элемент.', 'Ошибка');
@@ -37,7 +37,7 @@ function displaySelectedCallback(listBox, maskList)
 
     % Получаем количество срезов по оси z
     [~, ~, numSlices] = size(array3D);
-
+    
     % Вычисляем оптимальное число строк и столбцов для субплотов
     cols = ceil(sqrt(numSlices));
     rows = ceil(numSlices / cols);
@@ -56,38 +56,36 @@ function displaySelectedCallback(listBox, maskList)
         title(sprintf('z = %d', i));
 
         % Если передан список масок и в нем выбран элемент,
-        % пытаемся наложить полупрозрачную розовую маску.
+        % пытаемся наложить полупрозрачную маску
         if nargin > 1 && ~isempty(maskList) && ~isempty(maskList.Value)
-            % Если выбрано несколько масок, берем первую.
+            % Если выбрано несколько масок, берем первую
             if iscell(maskList.Value)
                 maskNameStr = maskList.Value{1};
             else
                 maskNameStr = maskList.Value;
             end
 
-            % Попытка получить маску из базового workspace.
+            % Попытка получить маску из базового workspace
             try
                 mask = evalin('base', maskNameStr);
             catch
+                % Если переменная не найдена, просто пропускаем
                 continue;
             end
 
-            % Проверяем, что маска – логическая и ее размер совпадает с размером среза.
+            % Проверяем, что маска – логическая и ее размер совпадает с размером среза
             if islogical(mask) && all(size(mask) == size(array3D(:,:,i)))
                 hold on;
-                % Создаем RGB-изображение, где все пиксели розовые: [1 0 1]
-                maskRGB = repmat(reshape([1, 0, 1], 1, 1, 3), size(mask,1), size(mask,2));
-                % Отображаем его поверх среза с прозрачностью 0.5 там, где маска истинна.
-                hMask = image(maskRGB, 'Parent', gca);
-                set(hMask, 'AlphaData', 0.25 * double(mask));
+                hMask = imagesc(mask);
+                % Задаем прозрачность: там, где mask == true, alpha = 0.5
+                set(hMask, 'AlphaData', 0.5 * double(mask));
                 hold off;
             end
         end
     end
 
-    % Задаем единый colormap для всех осей, например, jet.
+    % Устанавливаем единый colormap для всего окна
     colormap(jet);
-
-    % Добавляем общий цветовой бар (расположен с правой стороны окна)
+    % Добавляем общий цветовой бар
     cb = colorbar('Position',[0.92 0.1 0.02 0.8]);
 end
