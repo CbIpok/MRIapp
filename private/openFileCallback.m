@@ -3,7 +3,7 @@ function openFileCallback(edt1, edt2, edt3, listBox)
     dimX = edt1.Value;
     dimY = edt2.Value;
     dimZ = edt3.Value;
-    totalElements = dimX * dimY * dimZ;
+    expectedTotalElements = dimX * dimY * dimZ;
     
     % Открываем диалоговое окно для выбора бинарного файла
     [fileName, pathName] = uigetfile({'*.bin;*.dat;*.*', 'Бинарные файлы (*.bin, *.dat, ...)'}, 'Выберите бинарный файл');
@@ -22,21 +22,17 @@ function openFileCallback(edt1, edt2, edt3, listBox)
         return;
     end
     
-    % Читаем данные из файла как float
-    data = fread(fid, totalElements, 'float');
+    % Считываем весь файл как float
+    data = fread(fid, Inf, 'float');
     fclose(fid);
     
-    % Проверяем, что в файле содержится требуемое количество элементов
-    if numel(data) < totalElements
-        warndlg(sprintf('В файле содержится меньше данных (%d), чем ожидается (%d).', numel(data), totalElements), 'Предупреждение');
-        % Можно завершить выполнение функции или дополнить недостающие данные
+    % Проверяем, что количество считанных элементов совпадает с ожидаемым
+    if numel(data) ~= expectedTotalElements
+        errordlg(sprintf('Размер данных в файле (%d элементов) не соответствует ожидаемому размеру (%d элементов).', numel(data), expectedTotalElements), 'Ошибка');
         return;
-    elseif numel(data) > totalElements
-        warndlg(sprintf('В файле содержится больше данных (%d), чем ожидается (%d). Данные будут усечены.', numel(data), totalElements), 'Предупреждение');
-        data = data(1:totalElements);
     end
     
-    % Преобразуем в трехмерный массив размером [dimX, dimY, dimZ]
+    % Преобразуем данные в трехмерный массив размером [dimX, dimY, dimZ]
     array3D = reshape(data, [dimX, dimY, dimZ]);
     
     % Извлекаем имя переменной из имени файла (без расширения)
