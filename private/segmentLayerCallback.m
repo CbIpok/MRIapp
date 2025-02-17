@@ -2,7 +2,7 @@ function segmentLayerCallback(fileList, sliceField)
     % Получаем выбранный элемент из списка файлов
     selectedItems = fileList.Value;
     if isempty(selectedItems)
-        uialert(fileList.Parent, 'Не выбран ни один файл.', 'Ошибка');
+        uialert(fileList.Parent.Parent.Parent, 'Не выбран ни один файл.', 'Ошибка');
         return;
     end
     if iscell(selectedItems)
