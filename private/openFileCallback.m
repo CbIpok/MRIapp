@@ -1,56 +1,51 @@
 function openFileCallback(edt1, edt2, edt3, listBox)
-    % Считываем размеры массива из текстовых полей
     dimX = edt1.Value;
     dimY = edt2.Value;
     dimZ = edt3.Value;
-    expectedTotalElements = dimX * dimY * dimZ;
-    
-    % Открываем диалоговое окно для выбора бинарного файла
-    [fileName, pathName] = uigetfile({'*.bin;*.dat;*.*', 'Бинарные файлы (*.bin, *.dat, ...)'}, 'Выберите бинарный файл');
-    
+
+    [fileName, pathName] = uigetfile( ...
+        {'*.bin;*.dat;*.64;*.ser;*.*', ...
+        'Volumes and spectra (*.bin, *.dat, *.64, *.ser, ...)'}, ...
+        'Выберите файл объёма или спектра');
+
     if isequal(fileName, 0)
         disp('Файл не выбран.');
         return;
     end
-    
+
     fullPath = fullfile(pathName, fileName);
-    
-    % Открываем файл для чтения в бинарном режиме
-    fid = fopen(fullPath, 'rb');
-    if fid == -1
-        errordlg('Не удалось открыть файл.', 'Ошибка');
+
+    try
+        [varName, array3D, extras, meta] = loadVolumeForApp(fullPath, dimX, dimY, dimZ);
+    catch ME
+        errordlg(ME.message, 'Ошибка');
         return;
     end
-    
-    % Считываем весь файл как float
-    data = fread(fid, Inf, 'float');
-    fclose(fid);
-    
-    % Проверяем, что количество считанных элементов совпадает с ожидаемым
-    if numel(data) ~= expectedTotalElements
-        errordlg(sprintf('Размер данных в файле (%d элементов) не соответствует ожидаемому размеру (%d элементов).', numel(data), expectedTotalElements), 'Ошибка');
-        return;
+
+    assignin('base', varName, array3D);
+    assignin('base', meta.metaVarName, meta);
+
+    if isfield(extras, 'spectrum4D')
+        assignin('base', meta.spectrumVarName, extras.spectrum4D);
     end
-    
-    % Преобразуем данные в трехмерный массив размером [dimX, dimY, dimZ]
-    array3D = reshape(data, [dimX, dimY, dimZ]);
-    
-    % Извлекаем имя переменной из имени файла (без расширения)
-    [varName, ~, ~] = fileparts(fileName);
-    
-    % Создаем переменную в базовом рабочем пространстве
-    assignin('base', fileName, array3D);
-    
-    % Формируем строку для отображения в списке: "имя_файла [dimX, dimY, dimZ]"
-    newItem = sprintf('%s [%g, %g, %g]', fileName, dimX, dimY, dimZ);
+
+    newItem = sprintf('%s [%g, %g, %g]', ...
+        varName, size(array3D, 1), size(array3D, 2), size(array3D, 3));
+
     items = listBox.Items;
     if isempty(items)
         items = {newItem};
     else
-        items{end+1} = newItem;
+        items{end + 1} = newItem;
     end
     listBox.Items = items;
-    
-    % Выводим сообщение в командное окно
-    disp(['Переменная "', varName, '" создана с размерностью [', num2str(dimX), ', ', num2str(dimY), ', ', num2str(dimZ), '].']);
+
+    if isfield(extras, 'spectrum4D')
+        disp(['Переменная "', varName, '" создана как 3D интеграл спектра с размерностью [', ...
+            num2str(size(array3D, 1)), ', ', num2str(size(array3D, 2)), ', ', num2str(size(array3D, 3)), ...
+            ']. 4D спектр сохранён в "', meta.spectrumVarName, '".']);
+    else
+        disp(['Переменная "', varName, '" создана с размерностью [', ...
+            num2str(size(array3D, 1)), ', ', num2str(size(array3D, 2)), ', ', num2str(size(array3D, 3)), '].']);
+    end
 end
