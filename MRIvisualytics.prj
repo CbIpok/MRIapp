@@ -1,5 +1,5 @@
 <deployment-project plugin="plugin.apptool" plugin-version="1.0">
-  <configuration build-checksum="3094322404" file="C:\Users\79639\Desktop\лизик\MRI app\MRIvisualytics.prj" location="C:\Users\79639\Desktop\лизик\MRI app" name="MRIvisualytics" target="target.mlapps" target-name="Package App">
+  <configuration build-checksum="3402292550" file="C:\Users\79639\Desktop\лизик\MRI app\MRIvisualytics.prj" location="C:\Users\79639\Desktop\лизик\MRI app" name="MRIvisualytics" target="target.mlapps" target-name="Package App">
     <param.appname>MRIvisualytics</param.appname>
     <param.authnamewatermark>Elizaveta Kononenko</param.authnamewatermark>
     <param.email />
@@ -12,13 +12,13 @@
     </param.icons>
     <param.summary />
     <param.description />
-    <param.screenshot>C:\Users\79639\Downloads\Снимок экрана 2025-02-17 112439.png</param.screenshot>
+    <param.screenshot>C:\Users\79639\AppData\Local\Temp\tpbb3ef241_266a_4fc2_8900_4cf10c2ff32e.png</param.screenshot>
     <param.version>1.0</param.version>
     <param.products.name />
     <param.products.id />
     <param.products.version />
     <param.platforms />
-    <param.output>${PROJECT_ROOT}</param.output>
+    <param.output>C:\Users\79639\Desktop\лизик\MRIvisualistic</param.output>
     <param.guid>48f01738-5057-4ad6-80ac-f563a29756d8</param.guid>
     <unset>
       <param.email />
@@ -30,23 +30,21 @@
       <param.products.id />
       <param.products.version />
       <param.platforms />
-      <param.output />
     </unset>
     <fileset.main>
       <file>${PROJECT_ROOT}\test.mlapp</file>
     </fileset.main>
     <fileset.depfun>
       <file>${PROJECT_ROOT}\CompDisplay.mlapp</file>
-      <file>${PROJECT_ROOT}\private\cnrCalculator.m</file>
+      <file>${PROJECT_ROOT}\private\Calculation.m</file>
       <file>${PROJECT_ROOT}\private\displaySelectedCallback.m</file>
       <file>${PROJECT_ROOT}\private\openFileCallback.m</file>
       <file>${PROJECT_ROOT}\private\segmentLayerCallback.m</file>
-      <file>${PROJECT_ROOT}\private\snrCalculator.m</file>
     </fileset.depfun>
     <fileset.resources />
     <fileset.package />
     <build-deliverables>
-      <file location="C:\Users\79639\Desktop\лизик" name="MRI app" optional="false">C:\Users\79639\Desktop\лизик\MRI app</file>
+      <file location="C:\Users\79639\Desktop\лизик" name="MRIvisualistic" optional="false">C:\Users\79639\Desktop\лизик\MRIvisualistic</file>
     </build-deliverables>
     <workflow />
     <matlab>
