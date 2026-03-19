@@ -18,49 +18,58 @@ end
 savedRange = normalizeRange(savedRange, nSpec);
 previewRange = savedRange;
 previewVolume = currentVolume;
+isPickingRange = false;
+pickedRangePoints = [];
 
 fig = uifigure('Name', ['Spectrum interaction: ' info.varName], 'Position', [100 100 1180 720]);
 movegui(fig, 'center');
 
-axialAxes = uiaxes(fig, 'Position', [20 370 320 300]);
-coronalAxes = uiaxes(fig, 'Position', [360 370 320 300]);
-sagittalAxes = uiaxes(fig, 'Position', [700 370 320 300]);
-spectrumAxes = uiaxes(fig, 'Position', [20 40 760 260]);
+fig.Position(3:4) = [1360 760];
 
-uilabel(fig, 'Position', [820 620 80 22], 'Text', 'Voxel X');
-spinX = uispinner(fig, 'Position', [900 620 80 22], 'Limits', [1, nX], ...
+axialAxes = uiaxes(fig, 'Position', [20 390 360 320]);
+coronalAxes = uiaxes(fig, 'Position', [405 390 360 320]);
+sagittalAxes = uiaxes(fig, 'Position', [790 390 300 320]);
+spectrumAxes = uiaxes(fig, 'Position', [20 55 1070 280]);
+
+controlPanel = uipanel(fig, 'Title', 'Controls', 'Position', [1110 55 230 655]);
+
+uilabel(controlPanel, 'Position', [18 580 80 22], 'Text', 'Voxel X');
+spinX = uispinner(controlPanel, 'Position', [110 580 90 22], 'Limits', [1, nX], ...
     'RoundFractionalValues', true, 'Value', current.x, ...
     'ValueChangedFcn', @(~, ~) onVoxelSpinnerChanged());
 
-uilabel(fig, 'Position', [820 580 80 22], 'Text', 'Voxel Y');
-spinY = uispinner(fig, 'Position', [900 580 80 22], 'Limits', [1, nY], ...
+uilabel(controlPanel, 'Position', [18 540 80 22], 'Text', 'Voxel Y');
+spinY = uispinner(controlPanel, 'Position', [110 540 90 22], 'Limits', [1, nY], ...
     'RoundFractionalValues', true, 'Value', current.y, ...
     'ValueChangedFcn', @(~, ~) onVoxelSpinnerChanged());
 
-uilabel(fig, 'Position', [820 540 80 22], 'Text', 'Voxel Z');
-spinZ = uispinner(fig, 'Position', [900 540 80 22], 'Limits', [1, nZ], ...
+uilabel(controlPanel, 'Position', [18 500 80 22], 'Text', 'Voxel Z');
+spinZ = uispinner(controlPanel, 'Position', [110 500 90 22], 'Limits', [1, nZ], ...
     'RoundFractionalValues', true, 'Value', current.z, ...
     'ValueChangedFcn', @(~, ~) onVoxelSpinnerChanged());
 
-uilabel(fig, 'Position', [820 470 220 22], 'Text', 'Integration range');
-startField = uieditfield(fig, 'numeric', 'Position', [820 440 70 28], ...
+uilabel(controlPanel, 'Position', [18 430 180 22], 'Text', 'Integration range');
+startField = uieditfield(controlPanel, 'numeric', 'Position', [18 395 80 28], ...
     'Limits', [1, nSpec], 'RoundFractionalValues', true, 'Value', previewRange(1));
-endField = uieditfield(fig, 'numeric', 'Position', [910 440 70 28], ...
+endField = uieditfield(controlPanel, 'numeric', 'Position', [120 395 80 28], ...
     'Limits', [1, nSpec], 'RoundFractionalValues', true, 'Value', previewRange(2));
 
-uibutton(fig, 'push', 'Position', [820 390 160 32], ...
+uilabel(controlPanel, 'Position', [18 370 180 18], 'Text', 'Start / End points');
+
+uibutton(controlPanel, 'push', 'Position', [18 325 182 34], ...
     'Text', 'Preview range', 'ButtonPushedFcn', @(~, ~) onPreviewRange());
 
-uibutton(fig, 'push', 'Position', [820 345 160 32], ...
+uibutton(controlPanel, 'push', 'Position', [18 280 182 34], ...
     'Text', 'Save range', 'ButtonPushedFcn', @(~, ~) onSaveRange());
 
-uibutton(fig, 'push', 'Position', [820 300 160 32], ...
-    'Text', 'Use selected voxel', 'ButtonPushedFcn', @(~, ~) onPickRangeFromPlot());
+uibutton(controlPanel, 'push', 'Position', [18 235 182 34], ...
+    'Text', 'Pick range on plot', 'Tooltip', {'Select two points on the spectrum plot.'}, ...
+    'ButtonPushedFcn', @(~, ~) onPickRangeFromPlot());
 
-savedRangeLabel = uilabel(fig, 'Position', [820 240 320 44], ...
+savedRangeLabel = uilabel(controlPanel, 'Position', [18 165 190 50], ...
     'Text', sprintf('Saved range: [%d, %d]', savedRange(1), savedRange(2)));
 
-statusLabel = uilabel(fig, 'Position', [20 10 1120 22], ...
+statusLabel = uilabel(fig, 'Position', [20 18 1320 22], ...
     'Text', 'Preview shows the current 3D volume. Save updates the workspace volume used by the app.');
 
 updateAllViews();
@@ -109,17 +118,9 @@ updateAllViews();
     end
 
     function onPickRangeFromPlot()
-        drawnow;
-        [xVals, ~] = ginput(2);
-        if numel(xVals) ~= 2
-            return;
-        end
-        chosenRange = normalizeRange(sort(round(xVals)), nSpec);
-        startField.Value = chosenRange(1);
-        endField.Value = chosenRange(2);
-        previewRange = chosenRange;
-        statusLabel.Text = sprintf('Picked range from spectrum: [%d, %d]. Click Preview or Save.', ...
-            chosenRange(1), chosenRange(2));
+        isPickingRange = true;
+        pickedRangePoints = [];
+        statusLabel.Text = 'Click two points on the spectrum plot to set the integration range.';
         updateSpectrumPlot();
     end
 
@@ -204,7 +205,7 @@ updateAllViews();
     function updateSpectrumPlot()
         cla(spectrumAxes);
         spec = abs(spectrum4D(:, current.x, current.y, current.z));
-        plot(spectrumAxes, spec, 'b-', 'LineWidth', 1.2);
+        hSpec = plot(spectrumAxes, spec, 'b-', 'LineWidth', 1.2);
         title(spectrumAxes, sprintf('Spectrum (%d, %d, %d)', current.x, current.y, current.z));
         xlabel(spectrumAxes, 'Spectral point');
         ylabel(spectrumAxes, 'Amplitude');
@@ -212,7 +213,57 @@ updateAllViews();
         hold(spectrumAxes, 'on');
         xline(spectrumAxes, previewRange(1), '--r', 'Start');
         xline(spectrumAxes, previewRange(2), '--r', 'End');
+        if ~isempty(pickedRangePoints)
+            for iPoint = 1:numel(pickedRangePoints)
+                xline(spectrumAxes, pickedRangePoints(iPoint), ':k');
+            end
+        end
         hold(spectrumAxes, 'off');
+        spectrumAxes.ButtonDownFcn = @(~, event) onSpectrumClicked(event);
+        hSpec.ButtonDownFcn = @(~, event) onSpectrumClicked(event);
+        bindSpectrumChildClicks();
+    end
+
+    function bindSpectrumChildClicks()
+        children = spectrumAxes.Children;
+        for k = 1:numel(children)
+            if isprop(children(k), 'ButtonDownFcn')
+                children(k).PickableParts = 'all';
+                children(k).HitTest = 'on';
+                children(k).ButtonDownFcn = @(~, event) onSpectrumClicked(event);
+            end
+        end
+    end
+
+    function onSpectrumClicked(event)
+        if ~isPickingRange
+            return;
+        end
+
+        if isprop(event, 'IntersectionPoint')
+            xClick = event.IntersectionPoint(1);
+        else
+            point = spectrumAxes.CurrentPoint;
+            xClick = point(1, 1);
+        end
+
+        xClick = clampIndex(xClick, nSpec);
+        pickedRangePoints(end + 1) = xClick;
+
+        if numel(pickedRangePoints) >= 2
+            chosenRange = normalizeRange(pickedRangePoints(1:2), nSpec);
+            startField.Value = chosenRange(1);
+            endField.Value = chosenRange(2);
+            previewRange = chosenRange;
+            pickedRangePoints = [];
+            isPickingRange = false;
+            statusLabel.Text = sprintf('Picked range from spectrum: [%d, %d]. Click Preview or Save.', ...
+                chosenRange(1), chosenRange(2));
+        else
+            statusLabel.Text = sprintf('First point selected: %d. Click the second point on the spectrum.', xClick);
+        end
+
+        updateSpectrumPlot();
     end
 end
 
