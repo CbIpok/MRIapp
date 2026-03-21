@@ -275,7 +275,7 @@ txtResult = uitextarea(fig, 'Position', [20 20 460 150], 'Editable', 'off');
         end
         
         % Проверяем, что он 3D
-        if ndims(arr) < 3
+        if ndims(arr) > 3
             uialert(fig, 'Selected array is not 3D.', 'Error');
             arr = [];
         end
