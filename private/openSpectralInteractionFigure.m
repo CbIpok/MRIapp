@@ -66,7 +66,10 @@ uibutton(controlPanel, 'push', 'Position', [18 235 182 34], ...
     'Text', 'Pick range on plot', 'Tooltip', {'Select two points on the spectrum plot.'}, ...
     'ButtonPushedFcn', @(~, ~) onPickRangeFromPlot());
 
-savedRangeLabel = uilabel(controlPanel, 'Position', [18 165 190 50], ...
+uibutton(controlPanel, 'push', 'Position', [18 190 182 34], ...
+    'Text', 'Phase selected voxel', 'ButtonPushedFcn', @(~, ~) onOpenPhaseWindow());
+
+savedRangeLabel = uilabel(controlPanel, 'Position', [18 120 190 58], ...
     'Text', sprintf('Saved range: [%d, %d]', savedRange(1), savedRange(2)));
 
 statusLabel = uilabel(fig, 'Position', [20 18 1320 22], ...
@@ -84,7 +87,8 @@ updateAllViews();
     function onPreviewRange()
         try
             previewRange = normalizeRange([startField.Value, endField.Value], nSpec);
-            previewVolume = integrateSpectralRange(spectrum4D, previewRange(1):previewRange(2));
+            previewVolume = buildIntegratedVolumeFromSpectrum( ...
+                spectrum4D, previewRange(1):previewRange(2), meta);
             statusLabel.Text = sprintf('Preview range applied: [%d, %d].', previewRange(1), previewRange(2));
             updateAllViews();
         catch ME
@@ -95,7 +99,8 @@ updateAllViews();
     function onSaveRange()
         try
             previewRange = normalizeRange([startField.Value, endField.Value], nSpec);
-            previewVolume = integrateSpectralRange(spectrum4D, previewRange(1):previewRange(2));
+            previewVolume = buildIntegratedVolumeFromSpectrum( ...
+                spectrum4D, previewRange(1):previewRange(2), meta);
         catch ME
             uialert(fig, ME.message, 'Ошибка');
             return;
@@ -122,6 +127,19 @@ updateAllViews();
         pickedRangePoints = [];
         statusLabel.Text = 'Click two points on the spectrum plot to set the integration range.';
         updateSpectrumPlot();
+    end
+
+    function onOpenPhaseWindow()
+        openPhaseCorrectionFigure(info, [current.x, current.y, current.z], previewRange, @onPhaseSaved);
+    end
+
+    function onPhaseSaved(updatedVolume, updatedMeta)
+        currentVolume = updatedVolume;
+        previewVolume = updatedVolume;
+        meta = updatedMeta;
+        info.meta = updatedMeta;
+        statusLabel.Text = 'Phase parameters saved and current 3D volume was rebuilt.';
+        updateAllViews();
     end
 
     function updateAllViews()
