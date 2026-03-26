@@ -23,57 +23,128 @@ pickedRangePoints = [];
 
 fig = uifigure('Name', ['Spectrum interaction: ' info.varName], 'Position', [100 100 1180 720]);
 movegui(fig, 'center');
-
 fig.Position(3:4) = [1360 760];
 
-axialAxes = uiaxes(fig, 'Position', [20 390 360 320]);
-coronalAxes = uiaxes(fig, 'Position', [405 390 360 320]);
-sagittalAxes = uiaxes(fig, 'Position', [790 390 300 320]);
-spectrumAxes = uiaxes(fig, 'Position', [20 55 1070 280]);
+mainGrid = uigridlayout(fig, [3, 4]);
+mainGrid.RowHeight = {'1x', '1x', 32};
+mainGrid.ColumnWidth = {'1x', '1x', '1x', 260};
+mainGrid.RowSpacing = 10;
+mainGrid.ColumnSpacing = 10;
+mainGrid.Padding = [10 10 10 10];
 
-controlPanel = uipanel(fig, 'Title', 'Controls', 'Position', [1110 55 230 655]);
+axialAxes = uiaxes(mainGrid);
+axialAxes.Layout.Row = 1;
+axialAxes.Layout.Column = 1;
 
-uilabel(controlPanel, 'Position', [18 580 80 22], 'Text', 'Voxel X');
-spinX = uispinner(controlPanel, 'Position', [110 580 90 22], 'Limits', [1, nX], ...
+coronalAxes = uiaxes(mainGrid);
+coronalAxes.Layout.Row = 1;
+coronalAxes.Layout.Column = 2;
+
+sagittalAxes = uiaxes(mainGrid);
+sagittalAxes.Layout.Row = 1;
+sagittalAxes.Layout.Column = 3;
+
+spectrumAxes = uiaxes(mainGrid);
+spectrumAxes.Layout.Row = 2;
+spectrumAxes.Layout.Column = [1 3];
+
+controlPanel = uipanel(mainGrid, 'Title', 'Controls');
+controlPanel.Layout.Row = [1 2];
+controlPanel.Layout.Column = 4;
+
+controlsGrid = uigridlayout(controlPanel, [13, 2]);
+controlsGrid.RowHeight = {22, 32, 22, 32, 22, 32, 22, 52, 36, 36, 36, 36, '1x'};
+controlsGrid.ColumnWidth = {70, '1x'};
+controlsGrid.RowSpacing = 8;
+controlsGrid.ColumnSpacing = 8;
+controlsGrid.Padding = [10 10 10 10];
+
+labelX = uilabel(controlsGrid, 'Text', 'Voxel X');
+labelX.Layout.Row = 1;
+labelX.Layout.Column = 1;
+spinX = uispinner(controlsGrid, 'Limits', [1, nX], ...
     'RoundFractionalValues', true, 'Value', current.x, ...
     'ValueChangedFcn', @(~, ~) onVoxelSpinnerChanged());
+spinX.Layout.Row = 2;
+spinX.Layout.Column = [1 2];
 
-uilabel(controlPanel, 'Position', [18 540 80 22], 'Text', 'Voxel Y');
-spinY = uispinner(controlPanel, 'Position', [110 540 90 22], 'Limits', [1, nY], ...
+labelY = uilabel(controlsGrid, 'Text', 'Voxel Y');
+labelY.Layout.Row = 3;
+labelY.Layout.Column = 1;
+spinY = uispinner(controlsGrid, 'Limits', [1, nY], ...
     'RoundFractionalValues', true, 'Value', current.y, ...
     'ValueChangedFcn', @(~, ~) onVoxelSpinnerChanged());
+spinY.Layout.Row = 4;
+spinY.Layout.Column = [1 2];
 
-uilabel(controlPanel, 'Position', [18 500 80 22], 'Text', 'Voxel Z');
-spinZ = uispinner(controlPanel, 'Position', [110 500 90 22], 'Limits', [1, nZ], ...
+labelZ = uilabel(controlsGrid, 'Text', 'Voxel Z');
+labelZ.Layout.Row = 5;
+labelZ.Layout.Column = 1;
+spinZ = uispinner(controlsGrid, 'Limits', [1, nZ], ...
     'RoundFractionalValues', true, 'Value', current.z, ...
     'ValueChangedFcn', @(~, ~) onVoxelSpinnerChanged());
+spinZ.Layout.Row = 6;
+spinZ.Layout.Column = [1 2];
 
-uilabel(controlPanel, 'Position', [18 430 180 22], 'Text', 'Integration range');
-startField = uieditfield(controlPanel, 'numeric', 'Position', [18 395 80 28], ...
-    'Limits', [1, nSpec], 'RoundFractionalValues', true, 'Value', previewRange(1));
-endField = uieditfield(controlPanel, 'numeric', 'Position', [120 395 80 28], ...
-    'Limits', [1, nSpec], 'RoundFractionalValues', true, 'Value', previewRange(2));
+rangeLabel = uilabel(controlsGrid, 'Text', 'Integration range');
+rangeLabel.Layout.Row = 7;
+rangeLabel.Layout.Column = [1 2];
 
-uilabel(controlPanel, 'Position', [18 370 180 18], 'Text', 'Start / End points');
+rangeGrid = uigridlayout(controlsGrid, [2, 2]);
+rangeGrid.RowHeight = {32, 20};
+rangeGrid.ColumnWidth = {'1x', '1x'};
+rangeGrid.RowSpacing = 4;
+rangeGrid.ColumnSpacing = 6;
+rangeGrid.Padding = [0 0 0 0];
+rangeGrid.Layout.Row = 8;
+rangeGrid.Layout.Column = [1 2];
 
-uibutton(controlPanel, 'push', 'Position', [18 325 182 34], ...
+startField = uieditfield(rangeGrid, 'numeric', 'Limits', [1, nSpec], ...
+    'RoundFractionalValues', true, 'Value', previewRange(1));
+startField.Layout.Row = 1;
+startField.Layout.Column = 1;
+
+endField = uieditfield(rangeGrid, 'numeric', 'Limits', [1, nSpec], ...
+    'RoundFractionalValues', true, 'Value', previewRange(2));
+endField.Layout.Row = 1;
+endField.Layout.Column = 2;
+
+rangeHint = uilabel(rangeGrid, 'Text', 'Start / End points');
+rangeHint.Layout.Row = 2;
+rangeHint.Layout.Column = [1 2];
+
+previewButton = uibutton(controlsGrid, 'push', ...
     'Text', 'Preview range', 'ButtonPushedFcn', @(~, ~) onPreviewRange());
+previewButton.Layout.Row = 9;
+previewButton.Layout.Column = [1 2];
 
-uibutton(controlPanel, 'push', 'Position', [18 280 182 34], ...
+saveButton = uibutton(controlsGrid, 'push', ...
     'Text', 'Save range', 'ButtonPushedFcn', @(~, ~) onSaveRange());
+saveButton.Layout.Row = 10;
+saveButton.Layout.Column = [1 2];
 
-uibutton(controlPanel, 'push', 'Position', [18 235 182 34], ...
+plotButton = uibutton(controlsGrid, 'push', ...
     'Text', 'Pick range on plot', 'Tooltip', {'Select two points on the spectrum plot.'}, ...
     'ButtonPushedFcn', @(~, ~) onPickRangeFromPlot());
+plotButton.Layout.Row = 11;
+plotButton.Layout.Column = [1 2];
 
-uibutton(controlPanel, 'push', 'Position', [18 190 182 34], ...
+phaseButton = uibutton(controlsGrid, 'push', ...
     'Text', 'Phase selected voxel', 'ButtonPushedFcn', @(~, ~) onOpenPhaseWindow());
+phaseButton.Layout.Row = 12;
+phaseButton.Layout.Column = [1 2];
 
-savedRangeLabel = uilabel(controlPanel, 'Position', [18 120 190 58], ...
-    'Text', sprintf('Saved range: [%d, %d]', savedRange(1), savedRange(2)));
+savedRangeLabel = uilabel(controlsGrid, ...
+    'Text', sprintf('Saved range: [%d, %d]', savedRange(1), savedRange(2)), ...
+    'WordWrap', 'on');
+savedRangeLabel.Layout.Row = 13;
+savedRangeLabel.Layout.Column = [1 2];
 
-statusLabel = uilabel(fig, 'Position', [20 18 1320 22], ...
-    'Text', 'Preview shows the current 3D volume. Save updates the workspace volume used by the app.');
+statusLabel = uilabel(mainGrid, ...
+    'Text', 'Preview shows the current 3D volume. Save updates the workspace volume used by the app.', ...
+    'WordWrap', 'on');
+statusLabel.Layout.Row = 3;
+statusLabel.Layout.Column = [1 4];
 
 updateAllViews();
 
