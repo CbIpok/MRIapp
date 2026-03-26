@@ -52,8 +52,8 @@ controlPanel = uipanel(mainGrid, 'Title', 'Controls');
 controlPanel.Layout.Row = [1 2];
 controlPanel.Layout.Column = 4;
 
-controlsGrid = uigridlayout(controlPanel, [13, 2]);
-controlsGrid.RowHeight = {22, 32, 22, 32, 22, 32, 22, 52, 36, 36, 36, 36, '1x'};
+controlsGrid = uigridlayout(controlPanel, [14, 2]);
+controlsGrid.RowHeight = {22, 32, 22, 32, 22, 32, 22, 52, 36, 36, 36, 36, 36, '1x'};
 controlsGrid.ColumnWidth = {70, '1x'};
 controlsGrid.RowSpacing = 8;
 controlsGrid.ColumnSpacing = 8;
@@ -134,10 +134,15 @@ phaseButton = uibutton(controlsGrid, 'push', ...
 phaseButton.Layout.Row = 12;
 phaseButton.Layout.Column = [1 2];
 
+conversionButton = uibutton(controlsGrid, 'push', ...
+    'Text', 'Calculate convertion', 'ButtonPushedFcn', @(~, ~) onOpenConversionWindow());
+conversionButton.Layout.Row = 13;
+conversionButton.Layout.Column = [1 2];
+
 savedRangeLabel = uilabel(controlsGrid, ...
     'Text', sprintf('Saved range: [%d, %d]', savedRange(1), savedRange(2)), ...
     'WordWrap', 'on');
-savedRangeLabel.Layout.Row = 13;
+savedRangeLabel.Layout.Row = 14;
 savedRangeLabel.Layout.Column = [1 2];
 
 statusLabel = uilabel(mainGrid, ...
@@ -202,6 +207,11 @@ updateAllViews();
 
     function onOpenPhaseWindow()
         openPhaseCorrectionFigure(info, [current.x, current.y, current.z], previewRange, @onPhaseSaved);
+    end
+
+    function onOpenConversionWindow()
+        info.meta = meta;
+        openSpectralConversionFigure(info, [current.x, current.y, current.z]);
     end
 
     function onPhaseSaved(updatedVolume, updatedMeta)
