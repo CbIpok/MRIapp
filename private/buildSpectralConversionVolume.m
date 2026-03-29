@@ -22,7 +22,7 @@ for iDef = 1:numel(defs)
     currentVolume = integrateSpectralRange(spectrumUsed, idxRange);
     variableVolumes{iDef} = currentVolume;
     variableNames{iDef} = defs(iDef).name;
-    weightedVolume = defs(iDef).multiplier .* currentVolume;
+    weightedVolume = currentVolume ./ defs(iDef).divisor;
 
     if defs(iDef).useNumerator
         numerator = numerator + weightedVolume;
@@ -89,13 +89,13 @@ for iDef = 1:numel(definitions)
     usedNames(iDef, 1) = normalizedName;
 
     [startIndex, endIndex] = normalizeDefinitionRange(src, nSpec);
-    multiplier = getNumericField(src, 'multiplier', 1);
+    divisor = getDefinitionDivisor(src);
 
     defs(iDef) = struct( ...
         'name', char(name), ...
         'startIndex', startIndex, ...
         'endIndex', endIndex, ...
-        'multiplier', multiplier, ...
+        'divisor', divisor, ...
         'useNumerator', getLogicalField(src, 'useNumerator'), ...
         'useDenominator', getLogicalField(src, 'useDenominator'));
 end
@@ -151,6 +151,20 @@ if ~isscalar(value) || ~isfinite(value)
 end
 end
 
+function divisor = getDefinitionDivisor(src)
+if isfield(src, 'divisor')
+    divisor = getNumericField(src, 'divisor', 1);
+elseif isfield(src, 'multiplier')
+    divisor = getNumericField(src, 'multiplier', 1);
+else
+    divisor = 1;
+end
+
+if divisor == 0
+    error('Divisor must be non-zero.');
+end
+end
+
 function value = getLogicalField(src, fieldName)
 if ~isfield(src, fieldName)
     value = false;
@@ -174,7 +188,7 @@ def = struct( ...
     'name', '', ...
     'startIndex', 1, ...
     'endIndex', 1, ...
-    'multiplier', 1, ...
+    'divisor', 1, ...
     'useNumerator', false, ...
     'useDenominator', false);
 end

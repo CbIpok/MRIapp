@@ -128,12 +128,12 @@ endField = uieditfield(entryGrid, 'numeric', 'Limits', [1, nSpec], ...
 endField.Layout.Row = 3;
 endField.Layout.Column = 2;
 
-multiplierLabel = uilabel(entryGrid, 'Text', 'Multiplier');
-multiplierLabel.Layout.Row = 4;
-multiplierLabel.Layout.Column = 1;
-multiplierField = uieditfield(entryGrid, 'numeric', 'Value', 1);
-multiplierField.Layout.Row = 4;
-multiplierField.Layout.Column = 2;
+divisorLabel = uilabel(entryGrid, 'Text', 'Divisor');
+divisorLabel.Layout.Row = 4;
+divisorLabel.Layout.Column = 1;
+divisorField = uieditfield(entryGrid, 'numeric', 'Value', 1);
+divisorField.Layout.Row = 4;
+divisorField.Layout.Column = 2;
 
 buttonGrid = uigridlayout(controlsGrid, [2, 2]);
 buttonGrid.RowHeight = {32, 32};
@@ -166,7 +166,7 @@ pickRangeButton.Layout.Row = 2;
 pickRangeButton.Layout.Column = 2;
 
 variableTable = uitable(controlsGrid, ...
-    'ColumnName', {'Name', 'Start', 'End', 'Multiplier', 'Num', 'Den', 'Value'}, ...
+    'ColumnName', {'Name', 'Start', 'End', 'Divisor', 'Num', 'Den', 'Value'}, ...
     'ColumnEditable', [true true true true true true false], ...
     'ColumnFormat', {'char', 'numeric', 'numeric', 'numeric', 'logical', 'logical', 'numeric'}, ...
     'RowName', {}, ...
@@ -553,7 +553,7 @@ refreshAll();
         nameField.Value = definition.name;
         startField.Value = definition.startIndex;
         endField.Value = definition.endIndex;
-        multiplierField.Value = definition.multiplier;
+        divisorField.Value = definition.divisor;
         updateSpectrumPlot();
     end
 
@@ -571,9 +571,9 @@ refreshAll();
             newEnd = tmp;
         end
 
-        newMultiplier = double(multiplierField.Value);
-        if ~isscalar(newMultiplier) || ~isfinite(newMultiplier)
-            error('Multiplier must be a finite scalar.');
+        newDivisor = double(divisorField.Value);
+        if ~isscalar(newDivisor) || ~isfinite(newDivisor) || newDivisor == 0
+            error('Divisor must be a finite non-zero scalar.');
         end
 
         existingNames = string({definitions.name});
@@ -591,7 +591,7 @@ refreshAll();
             'name', newName, ...
             'startIndex', newStart, ...
             'endIndex', newEnd, ...
-            'multiplier', newMultiplier, ...
+            'divisor', newDivisor, ...
             'useNumerator', true, ...
             'useDenominator', false);
 
@@ -643,7 +643,7 @@ if isstruct(meta) && isfield(meta, 'conversionDefinitions') && ~isempty(meta.con
             name, ...
             clampConversionIndex(startIndex, nSpec), ...
             clampConversionIndex(endIndex, nSpec), ...
-            getOptionalNumeric(src, 'multiplier', 1), ...
+            getOptionalDivisor(src, 1), ...
             getOptionalLogical(src, 'useNumerator', true), ...
             getOptionalLogical(src, 'useDenominator', false));
 
@@ -675,7 +675,7 @@ for iDef = 1:numel(definitions)
     data{iDef, 1} = definitions(iDef).name;
     data{iDef, 2} = definitions(iDef).startIndex;
     data{iDef, 3} = definitions(iDef).endIndex;
-    data{iDef, 4} = definitions(iDef).multiplier;
+    data{iDef, 4} = definitions(iDef).divisor;
     data{iDef, 5} = logical(definitions(iDef).useNumerator);
     data{iDef, 6} = logical(definitions(iDef).useDenominator);
     data{iDef, 7} = variableValues(iDef);
@@ -708,9 +708,9 @@ for iRow = 1:nRows
         error('Variable range must be numeric.');
     end
 
-    multiplier = double(tableData{iRow, 4});
-    if ~isscalar(multiplier) || ~isfinite(multiplier)
-        error('Multiplier must be a finite scalar.');
+    divisor = double(tableData{iRow, 4});
+    if ~isscalar(divisor) || ~isfinite(divisor) || divisor == 0
+        error('Divisor must be a finite non-zero scalar.');
     end
 
     if startIndex > endIndex
@@ -723,7 +723,7 @@ for iRow = 1:nRows
         char(name), ...
         startIndex, ...
         endIndex, ...
-        multiplier, ...
+        divisor, ...
         logical(tableData{iRow, 5}), ...
         logical(tableData{iRow, 6}));
 end
@@ -738,12 +738,12 @@ end
 name = sprintf('var%d', candidate);
 end
 
-function definition = makeDefaultDefinition(name, startIndex, endIndex, multiplier, useNumerator, useDenominator)
+function definition = makeDefaultDefinition(name, startIndex, endIndex, divisor, useNumerator, useDenominator)
 definition = struct( ...
     'name', char(string(name)), ...
     'startIndex', round(startIndex), ...
     'endIndex', round(endIndex), ...
-    'multiplier', double(multiplier), ...
+    'divisor', double(divisor), ...
     'useNumerator', logical(useNumerator), ...
     'useDenominator', logical(useDenominator));
 end
@@ -757,6 +757,20 @@ if isfield(src, fieldName)
     value = double(src.(fieldName));
 else
     value = defaultValue;
+end
+end
+
+function value = getOptionalDivisor(src, defaultValue)
+if isfield(src, 'divisor')
+    value = double(src.divisor);
+elseif isfield(src, 'multiplier')
+    value = double(src.multiplier);
+else
+    value = defaultValue;
+end
+
+if ~isscalar(value) || ~isfinite(value) || value == 0
+    error('Divisor must be a finite non-zero scalar.');
 end
 end
 
