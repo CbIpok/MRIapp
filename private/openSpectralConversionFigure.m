@@ -20,6 +20,7 @@ definitions = loadInitialDefinitions(meta, nSpec);
 selectedDefinitionIndex = [];
 isPickingRange = false;
 pickedRangePoints = [];
+previewRangeActive = false;
 
 defaultOutputName = matlab.lang.makeValidName([info.varName '_conversion']);
 if isfield(meta, 'lastConversionOutputName') && ~isempty(meta.lastConversionOutputName)
@@ -116,7 +117,8 @@ startLabel = uilabel(entryGrid, 'Text', 'Start index');
 startLabel.Layout.Row = 2;
 startLabel.Layout.Column = 1;
 startField = uieditfield(entryGrid, 'numeric', 'Limits', [1, nSpec], ...
-    'RoundFractionalValues', true, 'Value', 1);
+    'RoundFractionalValues', true, 'Value', 1, ...
+    'ValueChangedFcn', @(~, ~) onEnteredRangeChanged());
 startField.Layout.Row = 2;
 startField.Layout.Column = 2;
 
@@ -124,7 +126,8 @@ endLabel = uilabel(entryGrid, 'Text', 'End index');
 endLabel.Layout.Row = 3;
 endLabel.Layout.Column = 1;
 endField = uieditfield(entryGrid, 'numeric', 'Limits', [1, nSpec], ...
-    'RoundFractionalValues', true, 'Value', min(nSpec, 10));
+    'RoundFractionalValues', true, 'Value', min(nSpec, 10), ...
+    'ValueChangedFcn', @(~, ~) onEnteredRangeChanged());
 endField.Layout.Row = 3;
 endField.Layout.Column = 2;
 
@@ -246,6 +249,7 @@ refreshAll();
             newDef = buildDefinitionFromFields();
             definitions = [definitions; newDef];
             selectedDefinitionIndex = numel(definitions);
+            previewRangeActive = false;
             nameField.Value = nextDefaultName(definitions);
             panelStatusLabel.Text = sprintf('Added variable "%s".', newDef.name);
             refreshAll();
@@ -263,6 +267,7 @@ refreshAll();
         try
             updatedDef = buildDefinitionFromFields();
             definitions(selectedDefinitionIndex) = updatedDef;
+            previewRangeActive = false;
             panelStatusLabel.Text = sprintf('Updated variable "%s".', updatedDef.name);
             refreshAll();
         catch ME
@@ -278,6 +283,7 @@ refreshAll();
 
         removedName = definitions(selectedDefinitionIndex).name;
         definitions(selectedDefinitionIndex) = [];
+        previewRangeActive = false;
         if isempty(definitions)
             selectedDefinitionIndex = [];
         else
@@ -291,7 +297,17 @@ refreshAll();
     function onPickRangeFromPlot()
         isPickingRange = true;
         pickedRangePoints = [];
+        selectedDefinitionIndex = [];
+        previewRangeActive = true;
         panelStatusLabel.Text = 'Click two points on the spectrum plot to set the variable range.';
+        updateSpectrumPlot();
+    end
+
+    function onEnteredRangeChanged()
+        selectedDefinitionIndex = [];
+        previewRangeActive = true;
+        startField.Value = clampConversionIndex(startField.Value, nSpec);
+        endField.Value = clampConversionIndex(endField.Value, nSpec);
         updateSpectrumPlot();
     end
 
@@ -361,6 +377,7 @@ refreshAll();
             else
                 selectedDefinitionIndex = event.Indices(1);
             end
+            previewRangeActive = false;
             if ~isempty(selectedDefinitionIndex) && selectedDefinitionIndex <= numel(definitions)
                 loadDefinitionIntoFields(definitions(selectedDefinitionIndex));
             end
@@ -488,24 +505,56 @@ refreshAll();
         colors = lines(max(numel(definitions), 1));
         for iDef = 1:numel(definitions)
             c = colors(iDef, :);
+            drawRangePatch(definitions(iDef).startIndex, definitions(iDef).endIndex, c, 0.08);
             xline(spectrumAxes, definitions(iDef).startIndex, '-', 'Color', c, 'Alpha', 0.25);
             xline(spectrumAxes, definitions(iDef).endIndex, '-', 'Color', c, 'Alpha', 0.25);
         end
 
         if ~isempty(selectedDefinitionIndex) && selectedDefinitionIndex >= 1 && selectedDefinitionIndex <= numel(definitions)
             selectedDef = definitions(selectedDefinitionIndex);
-            patch(spectrumAxes, ...
-                [selectedDef.startIndex, selectedDef.endIndex, selectedDef.endIndex, selectedDef.startIndex], ...
-                [0, 0, spectrumAxes.YLim(2), spectrumAxes.YLim(2)], ...
-                [1, 0.85, 0.2], 'FaceAlpha', 0.15, 'EdgeColor', 'none');
-        else
+            drawRangePatch(selectedDef.startIndex, selectedDef.endIndex, [1, 0.85, 0.2], 0.18);
+        end
+
+        if previewRangeActive
             enteredRange = sort([startField.Value, endField.Value]);
             enteredRange = [clampConversionIndex(enteredRange(1), nSpec), clampConversionIndex(enteredRange(2), nSpec)];
-            patch(spectrumAxes, ...
-                [enteredRange(1), enteredRange(2), enteredRange(2), enteredRange(1)], ...
-                [0, 0, spectrumAxes.YLim(2), spectrumAxes.YLim(2)], ...
-                [0.8, 0.9, 1], 'FaceAlpha', 0.12, 'EdgeColor', 'none');
+            drawPreviewRange(enteredRange(1), enteredRange(2));
         end
+    end
+
+    function drawRangePatch(startIndex, endIndex, colorValue, alphaValue)
+        yLimits = spectrumAxes.YLim;
+        if ~all(isfinite(yLimits)) || yLimits(2) <= yLimits(1)
+            yLimits = [0, 1];
+        end
+
+        patch(spectrumAxes, ...
+            [startIndex, endIndex, endIndex, startIndex], ...
+            [yLimits(1), yLimits(1), yLimits(2), yLimits(2)], ...
+            colorValue, 'FaceAlpha', alphaValue, 'EdgeColor', 'none');
+    end
+
+    function drawPreviewRange(startIndex, endIndex)
+        yLimits = spectrumAxes.YLim;
+        if ~all(isfinite(yLimits)) || yLimits(2) <= yLimits(1)
+            yLimits = [0, 1];
+        end
+
+        previewColor = [0.1, 0.8, 0.55];
+        drawRangePatch(startIndex, endIndex, previewColor, 0.22);
+        xline(spectrumAxes, startIndex, '--', 'Color', previewColor, 'LineWidth', 1.4);
+        xline(spectrumAxes, endIndex, '--', 'Color', previewColor, 'LineWidth', 1.4);
+
+        textX = startIndex + (endIndex - startIndex) / 2;
+        textY = yLimits(1) + 0.92 * (yLimits(2) - yLimits(1));
+        text(spectrumAxes, textX, textY, 'preview range', ...
+            'HorizontalAlignment', 'center', ...
+            'VerticalAlignment', 'middle', ...
+            'Color', [0 0.45 0.3], ...
+            'BackgroundColor', [1 1 1 0.75], ...
+            'Margin', 2, ...
+            'FontWeight', 'bold', ...
+            'Clipping', 'on');
     end
 
     function bindSpectrumChildClicks()
@@ -536,6 +585,8 @@ refreshAll();
 
         if numel(pickedRangePoints) >= 2
             chosenRange = sort(pickedRangePoints(1:2));
+            selectedDefinitionIndex = [];
+            previewRangeActive = true;
             startField.Value = chosenRange(1);
             endField.Value = chosenRange(2);
             pickedRangePoints = [];
@@ -550,6 +601,7 @@ refreshAll();
     end
 
     function loadDefinitionIntoFields(definition)
+        previewRangeActive = false;
         nameField.Value = definition.name;
         startField.Value = definition.startIndex;
         endField.Value = definition.endIndex;
