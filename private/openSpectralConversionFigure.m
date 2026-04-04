@@ -57,8 +57,8 @@ controlPanel = uipanel(mainGrid, 'Title', 'Conversion Controls');
 controlPanel.Layout.Row = [1 2];
 controlPanel.Layout.Column = 4;
 
-controlsGrid = uigridlayout(controlPanel, [7, 1]);
-controlsGrid.RowHeight = {108, 138, 72, 220, 42, 74, '1x'};
+controlsGrid = uigridlayout(controlPanel, [9, 1]);
+controlsGrid.RowHeight = {108, 138, 72, 220, 42, 74, 74, 36, '1x'};
 controlsGrid.RowSpacing = 8;
 controlsGrid.ColumnSpacing = 0;
 controlsGrid.Padding = [10 10 10 10];
@@ -230,6 +230,11 @@ panelStatusLabel = uilabel(saveGrid, 'Text', 'Configure variables, then calculat
 panelStatusLabel.Layout.Row = 2;
 panelStatusLabel.Layout.Column = 1;
 
+viewButton = uibutton(controlsGrid, 'push', 'Text', 'View conversion distribution', ...
+    'ButtonPushedFcn', @(~, ~) onViewConversionDistribution());
+viewButton.Layout.Row = 8;
+viewButton.Layout.Column = 1;
+
 statusLabel = uilabel(mainGrid, 'Text', 'Click slices to choose a voxel. The table controls inclusion in numerator and denominator.', ...
     'WordWrap', 'on');
 statusLabel.Layout.Row = 3;
@@ -352,6 +357,19 @@ refreshAll();
                 details.numerator(current.x, current.y, current.z), ...
                 details.denominator(current.x, current.y, current.z));
             panelStatusLabel.Text = sprintf('Saved conversion volume as "%s".', outputName);
+        catch ME
+            uialert(fig, ME.message, 'Error');
+        end
+    end
+
+    function onViewConversionDistribution()
+        try
+            defs = validateDefinitionsForComputation(definitions);
+            resultVolume = buildSpectralConversionVolume(spectrum4D, defs, meta);
+            openConversionDistributionFigure( ...
+                resultVolume, ...
+                [current.x, current.y, current.z], ...
+                ['Conversion distribution: ' info.varName]);
         catch ME
             uialert(fig, ME.message, 'Error');
         end
