@@ -56,7 +56,7 @@ controlPanel.Layout.Row = 1;
 controlPanel.Layout.Column = 4;
 
 controlsGrid = uigridlayout(controlPanel, [10, 2]);
-controlsGrid.RowHeight = {22, 32, 22, 32, 22, 32, 22, 22, 22, '1x'};
+controlsGrid.RowHeight = {22, 32, 22, 32, 22, 32, 22, 22, 22, 34};
 controlsGrid.ColumnWidth = {70, '1x'};
 controlsGrid.RowSpacing = 8;
 controlsGrid.ColumnSpacing = 8;
@@ -107,6 +107,11 @@ maxLabel = uilabel(controlsGrid, ...
 maxLabel.Layout.Row = 9;
 maxLabel.Layout.Column = [1 2];
 
+saveButton = uibutton(controlsGrid, 'push', 'Text', 'Save', ...
+    'ButtonPushedFcn', @(~, ~) onSaveVolume());
+saveButton.Layout.Row = 10;
+saveButton.Layout.Column = [1 2];
+
 statusLabel = uilabel(mainGrid, ...
     'Text', 'Read-only view of the current conversion distribution.', ...
     'WordWrap', 'on');
@@ -120,6 +125,16 @@ updateViews();
         current.y = round(spinY.Value);
         current.z = round(spinZ.Value);
         updateViews();
+    end
+
+    function onSaveVolume()
+        try
+            defaultName = matlab.lang.makeValidName(lower(strrep(figureTitle, ' ', '_')));
+            saveVolumeAsRawFloat(volume3D, [defaultName '.bin']);
+            statusLabel.Text = sprintf('Saved conversion volume [%d, %d, %d].', nX, nY, nZ);
+        catch ME
+            uialert(fig, ME.message, 'Error');
+        end
     end
 
     function updateViews()
