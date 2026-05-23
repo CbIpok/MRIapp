@@ -2,8 +2,8 @@ function openSpectralConversionFigure(info, currentVoxel)
 %OPENSPECTRALCONVERSIONFIGURE Configure named integrals and calculate a conversion map.
 
 spectrum4D = info.spectrum4D;
-currentVolume = info.volume3D;
 meta = info.meta;
+valueMode = getSpectralValueMode(meta);
 
 [nSpec, nX, nY, nZ] = size(spectrum4D);
 if nargin < 2 || isempty(currentVoxel)
@@ -16,6 +16,9 @@ current = struct( ...
     'z', clampConversionIndex(currentVoxel(3), nZ));
 
 correctedSpectrum4D = applyMetaPhaseIfNeeded(spectrum4D, meta);
+displayRange = getInitialDisplayRange(meta, nSpec);
+[currentVolume, correctedSpectrum4D] = buildIntegratedVolumeFromSpectrum( ...
+    spectrum4D, displayRange(1):displayRange(2), meta, valueMode);
 definitions = loadInitialDefinitions(meta, nSpec);
 selectedDefinitionIndex = [];
 isPickingRange = false;
@@ -57,8 +60,8 @@ controlPanel = uipanel(mainGrid, 'Title', 'Conversion Controls');
 controlPanel.Layout.Row = [1 2];
 controlPanel.Layout.Column = 4;
 
-controlsGrid = uigridlayout(controlPanel, [9, 1]);
-controlsGrid.RowHeight = {108, 138, 72, 220, 42, 74, 74, 36, '1x'};
+controlsGrid = uigridlayout(controlPanel, [10, 1]);
+controlsGrid.RowHeight = {108, 62, 138, 72, 220, 42, 74, 74, 36, '1x'};
 controlsGrid.RowSpacing = 8;
 controlsGrid.ColumnSpacing = 0;
 controlsGrid.Padding = [10 10 10 10];
@@ -72,6 +75,25 @@ voxelGrid.ColumnSpacing = 8;
 voxelGrid.Padding = [0 0 0 0];
 voxelGrid.Layout.Row = 1;
 voxelGrid.Layout.Column = 1;
+
+modeGrid = uigridlayout(controlsGrid, [2, 1]);
+modeGrid.RowHeight = {22, 32};
+modeGrid.ColumnWidth = {'1x'};
+modeGrid.RowSpacing = 6;
+modeGrid.Padding = [0 0 0 0];
+modeGrid.Layout.Row = 2;
+modeGrid.Layout.Column = 1;
+
+modeLabel = uilabel(modeGrid, 'Text', 'Spectrum mode');
+modeLabel.Layout.Row = 1;
+modeLabel.Layout.Column = 1;
+
+modeDropDown = uidropdown(modeGrid, ...
+    'Items', {'abs', 'Re'}, ...
+    'Value', conversionValueModeToItem(valueMode), ...
+    'ValueChangedFcn', @(src, ~) onModeChanged(src.Value));
+modeDropDown.Layout.Row = 2;
+modeDropDown.Layout.Column = 1;
 
 labelX = uilabel(voxelGrid, 'Text', 'Voxel X');
 labelX.Layout.Row = 1;
@@ -103,7 +125,7 @@ entryGrid.ColumnWidth = {95, '1x'};
 entryGrid.RowSpacing = 6;
 entryGrid.ColumnSpacing = 8;
 entryGrid.Padding = [0 0 0 0];
-entryGrid.Layout.Row = 2;
+entryGrid.Layout.Row = 3;
 entryGrid.Layout.Column = 1;
 
 nameLabel = uilabel(entryGrid, 'Text', 'Variable name');
@@ -144,7 +166,7 @@ buttonGrid.ColumnWidth = {'1x', '1x'};
 buttonGrid.RowSpacing = 8;
 buttonGrid.ColumnSpacing = 8;
 buttonGrid.Padding = [0 0 0 0];
-buttonGrid.Layout.Row = 3;
+buttonGrid.Layout.Row = 4;
 buttonGrid.Layout.Column = 1;
 
 addButton = uibutton(buttonGrid, 'push', 'Text', 'Add variable', ...
@@ -175,7 +197,7 @@ variableTable = uitable(controlsGrid, ...
     'RowName', {}, ...
     'CellSelectionCallback', @(src, event) onTableSelection(event), ...
     'CellEditCallback', @(src, event) onTableEdited(src, event));
-variableTable.Layout.Row = 4;
+variableTable.Layout.Row = 5;
 variableTable.Layout.Column = 1;
 variableTable.ColumnWidth = {90, 55, 55, 75, 45, 45, 70};
 
@@ -184,7 +206,7 @@ outputGrid.RowHeight = {32};
 outputGrid.ColumnWidth = {90, '1x'};
 outputGrid.ColumnSpacing = 8;
 outputGrid.Padding = [0 0 0 0];
-outputGrid.Layout.Row = 5;
+outputGrid.Layout.Row = 6;
 outputGrid.Layout.Column = 1;
 
 outputLabel = uilabel(outputGrid, 'Text', 'Output name');
@@ -198,7 +220,7 @@ resultGrid = uigridlayout(controlsGrid, [3, 1]);
 resultGrid.RowHeight = {32, 18, 18};
 resultGrid.RowSpacing = 4;
 resultGrid.Padding = [0 0 0 0];
-resultGrid.Layout.Row = 6;
+resultGrid.Layout.Row = 7;
 resultGrid.Layout.Column = 1;
 
 calcButton = uibutton(resultGrid, 'push', 'Text', 'Calculate current voxel', ...
@@ -218,7 +240,7 @@ saveGrid = uigridlayout(controlsGrid, [2, 1]);
 saveGrid.RowHeight = {32, '1x'};
 saveGrid.RowSpacing = 6;
 saveGrid.Padding = [0 0 0 0];
-saveGrid.Layout.Row = 7;
+saveGrid.Layout.Row = 8;
 saveGrid.Layout.Column = 1;
 
 saveButton = uibutton(saveGrid, 'push', 'Text', 'Save result volume', ...
@@ -232,7 +254,7 @@ panelStatusLabel.Layout.Column = 1;
 
 viewButton = uibutton(controlsGrid, 'push', 'Text', 'View conversion distribution', ...
     'ButtonPushedFcn', @(~, ~) onViewConversionDistribution());
-viewButton.Layout.Row = 8;
+viewButton.Layout.Row = 9;
 viewButton.Layout.Column = 1;
 
 statusLabel = uilabel(mainGrid, 'Text', 'Click slices to choose a voxel. The table controls inclusion in numerator and denominator.', ...
@@ -247,6 +269,19 @@ refreshAll();
         current.y = round(spinY.Value);
         current.z = round(spinZ.Value);
         refreshAll();
+    end
+
+    function onModeChanged(selectedItem)
+        try
+            valueMode = conversionItemToValueMode(selectedItem);
+            meta.currentSpectralValueMode = valueMode;
+            [currentVolume, correctedSpectrum4D] = buildIntegratedVolumeFromSpectrum( ...
+                spectrum4D, displayRange(1):displayRange(2), meta, valueMode);
+            panelStatusLabel.Text = sprintf('Spectrum mode changed to %s.', selectedItem);
+            refreshAll();
+        catch ME
+            uialert(fig, ME.message, 'Error');
+        end
     end
 
     function onAddVariable()
@@ -319,8 +354,9 @@ refreshAll();
     function onCalculateCurrentVoxel()
         try
             defs = validateDefinitionsForComputation(definitions);
-            currentSpectrum = correctedSpectrum4D(:, current.x, current.y, current.z);
-            [resultValue, details] = evaluateSpectralConversionValue(currentSpectrum, defs, struct());
+            currentSpectrum = spectrum4D(:, current.x, current.y, current.z);
+            meta.currentSpectralValueMode = valueMode;
+            [resultValue, details] = evaluateSpectralConversionValue(currentSpectrum, defs, meta);
             resultLabel.Text = sprintf('Result: %.6g', resultValue);
             fractionLabel.Text = sprintf('Numerator / Denominator: %.6g / %.6g', ...
                 details.numeratorValue, details.denominatorValue);
@@ -343,10 +379,12 @@ refreshAll();
             outputName = matlab.lang.makeValidName(outputName);
             outputField.Value = outputName;
 
+            meta.currentSpectralValueMode = valueMode;
             [resultVolume, details] = buildSpectralConversionVolume(spectrum4D, defs, meta);
             assignin('base', outputName, resultVolume);
 
             meta.conversionDefinitions = defs;
+            meta.currentSpectralValueMode = valueMode;
             meta.lastConversionOutputName = outputName;
             meta.lastConversionUpdatedAt = char(datetime('now'));
             assignin('base', info.metaVarName, meta);
@@ -365,6 +403,7 @@ refreshAll();
     function onViewConversionDistribution()
         try
             defs = validateDefinitionsForComputation(definitions);
+            meta.currentSpectralValueMode = valueMode;
             resultVolume = buildSpectralConversionVolume(spectrum4D, defs, meta);
             openConversionDistributionFigure( ...
                 resultVolume, ...
@@ -419,7 +458,7 @@ refreshAll();
         variableValues = zeros(numel(definitions), 1);
         for iDef = 1:numel(definitions)
             idxRange = definitions(iDef).startIndex:definitions(iDef).endIndex;
-            variableValues(iDef) = sum(abs(currentSpectrum(idxRange)));
+            variableValues(iDef) = sum(conversionSpectrumValues(currentSpectrum(idxRange), valueMode));
         end
         variableTable.Data = buildTableData(definitions, variableValues);
     end
@@ -499,11 +538,12 @@ refreshAll();
 
     function updateSpectrumPlot()
         cla(spectrumAxes);
-        currentSpectrum = abs(correctedSpectrum4D(:, current.x, current.y, current.z));
+        currentSpectrum = conversionSpectrumValues(correctedSpectrum4D(:, current.x, current.y, current.z), valueMode);
         hSpec = plot(spectrumAxes, currentSpectrum, 'b-', 'LineWidth', 1.2);
-        title(spectrumAxes, sprintf('Spectrum (%d, %d, %d)', current.x, current.y, current.z));
+        title(spectrumAxes, sprintf('Spectrum %s (%d, %d, %d)', conversionValueModeToItem(valueMode), ...
+            current.x, current.y, current.z));
         xlabel(spectrumAxes, 'Spectral point');
-        ylabel(spectrumAxes, 'Amplitude');
+        ylabel(spectrumAxes, conversionSpectrumLabel(valueMode));
         grid(spectrumAxes, 'on');
         hold(spectrumAxes, 'on');
         plotDefinitionRanges();
@@ -820,6 +860,62 @@ end
 
 function value = clampConversionIndex(value, maxValue)
 value = max(1, min(maxValue, round(value)));
+end
+
+function range = getInitialDisplayRange(meta, nSpec)
+if isstruct(meta) && isfield(meta, 'currentSpectralRange') && ~isempty(meta.currentSpectralRange)
+    range = meta.currentSpectralRange;
+elseif isstruct(meta) && isfield(meta, 'defaultSpectralRange') && ~isempty(meta.defaultSpectralRange)
+    range = meta.defaultSpectralRange;
+else
+    range = [1, nSpec];
+end
+
+range = sort(round(range(:)'));
+if numel(range) < 2
+    range = [1, nSpec];
+end
+range(1) = max(1, min(nSpec, range(1)));
+range(2) = max(1, min(nSpec, range(2)));
+if range(1) > range(2)
+    range = fliplr(range);
+end
+end
+
+function item = conversionValueModeToItem(valueMode)
+if strcmpi(valueMode, 'real')
+    item = 'Re';
+else
+    item = 'abs';
+end
+end
+
+function valueMode = conversionItemToValueMode(item)
+if strcmpi(item, 'Re')
+    valueMode = 'real';
+else
+    valueMode = 'abs';
+end
+end
+
+function values = conversionSpectrumValues(spectrumVector, valueMode)
+spectrumVector = reshape(spectrumVector, [], 1);
+switch lower(char(string(valueMode)))
+    case 'abs'
+        values = abs(spectrumVector);
+    case {'re', 'real'}
+        values = real(spectrumVector);
+    otherwise
+        error('Unsupported spectral value mode: %s', char(string(valueMode)));
+end
+end
+
+function label = conversionSpectrumLabel(valueMode)
+if strcmpi(valueMode, 'real')
+    label = 'Real part';
+else
+    label = 'Amplitude';
+end
 end
 
 function value = getOptionalNumeric(src, fieldName, defaultValue)

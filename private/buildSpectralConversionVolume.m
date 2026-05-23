@@ -6,7 +6,8 @@ if isempty(defs)
     error('Conversion definitions are empty.');
 end
 
-[~, spectrumUsed] = buildIntegratedVolumeFromSpectrum(spectrum4D, 1:size(spectrum4D, 1), meta);
+valueMode = getSpectralValueMode(meta);
+[~, spectrumUsed] = buildIntegratedVolumeFromSpectrum(spectrum4D, 1:size(spectrum4D, 1), meta, valueMode);
 resultSize = [size(spectrumUsed, 2), size(spectrumUsed, 3), size(spectrumUsed, 4)];
 
 numerator = zeros(resultSize);
@@ -19,7 +20,7 @@ hasDenominator = false;
 
 for iDef = 1:numel(defs)
     idxRange = defs(iDef).startIndex:defs(iDef).endIndex;
-    currentVolume = integrateSpectralRange(spectrumUsed, idxRange);
+    currentVolume = integrateSpectralRange(spectrumUsed, idxRange, valueMode);
     variableVolumes{iDef} = currentVolume;
     variableNames{iDef} = defs(iDef).name;
     weightedVolume = currentVolume ./ defs(iDef).divisor;
