@@ -52,8 +52,8 @@ controlPanel = uipanel(mainGrid, 'Title', 'Controls');
 controlPanel.Layout.Row = [1 2];
 controlPanel.Layout.Column = 4;
 
-controlsGrid = uigridlayout(controlPanel, [14, 2]);
-controlsGrid.RowHeight = {22, 32, 22, 32, 22, 32, 22, 52, 36, 36, 36, 36, 36, '1x'};
+controlsGrid = uigridlayout(controlPanel, [15, 2]);
+controlsGrid.RowHeight = {22, 32, 22, 32, 22, 32, 22, 52, 36, 36, 36, 36, 36, 36, '1x'};
 controlsGrid.ColumnWidth = {70, '1x'};
 controlsGrid.RowSpacing = 8;
 controlsGrid.ColumnSpacing = 8;
@@ -139,10 +139,15 @@ conversionButton = uibutton(controlsGrid, 'push', ...
 conversionButton.Layout.Row = 13;
 conversionButton.Layout.Column = [1 2];
 
+saveVolumeButton = uibutton(controlsGrid, 'push', ...
+    'Text', 'Save 3D volume', 'ButtonPushedFcn', @(~, ~) onSaveVolume());
+saveVolumeButton.Layout.Row = 14;
+saveVolumeButton.Layout.Column = [1 2];
+
 savedRangeLabel = uilabel(controlsGrid, ...
     'Text', sprintf('Saved range: [%d, %d]', savedRange(1), savedRange(2)), ...
     'WordWrap', 'on');
-savedRangeLabel.Layout.Row = 14;
+savedRangeLabel.Layout.Row = 15;
 savedRangeLabel.Layout.Column = [1 2];
 
 statusLabel = uilabel(mainGrid, ...
@@ -212,6 +217,16 @@ updateAllViews();
     function onOpenConversionWindow()
         info.meta = meta;
         openSpectralConversionFigure(info, [current.x, current.y, current.z]);
+    end
+
+    function onSaveVolume()
+        try
+            defaultName = matlab.lang.makeValidName([info.varName '_integrated']);
+            saveVolumeAsRawFloat(currentVolume, [defaultName '.bin']);
+            statusLabel.Text = sprintf('Saved current 3D volume [%d, %d, %d].', nX, nY, nZ);
+        catch ME
+            uialert(fig, ME.message, 'Error');
+        end
     end
 
     function onPhaseSaved(updatedVolume, updatedMeta)
