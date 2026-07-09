@@ -6,6 +6,7 @@ meta = info.meta;
 valueMode = getSpectralValueMode(meta);
 
 [nSpec, nX, nY, nZ] = size(spectrum4D);
+axisSettings = getSpectralAxisSettings(meta, nSpec);
 current = struct('x', ceil(nX / 2), 'y', ceil(nY / 2), 'z', ceil(nZ / 2));
 
 if isfield(meta, 'currentSpectralRange') && ~isempty(meta.currentSpectralRange)
@@ -54,8 +55,8 @@ controlPanel = uipanel(mainGrid, 'Title', 'Controls');
 controlPanel.Layout.Row = [1 2];
 controlPanel.Layout.Column = 4;
 
-controlsGrid = uigridlayout(controlPanel, [17, 2]);
-controlsGrid.RowHeight = {22, 32, 22, 32, 22, 32, 22, 52, 22, 32, 36, 36, 36, 36, 36, 36, '1x'};
+controlsGrid = uigridlayout(controlPanel, [20, 2]);
+controlsGrid.RowHeight = {22, 32, 22, 32, 22, 32, 22, 52, 22, 32, 22, 58, 28, 36, 36, 36, 36, 36, 36, '1x'};
 controlsGrid.ColumnWidth = {70, '1x'};
 controlsGrid.RowSpacing = 8;
 controlsGrid.ColumnSpacing = 8;
@@ -127,41 +128,79 @@ modeDropDown = uidropdown(controlsGrid, ...
 modeDropDown.Layout.Row = 10;
 modeDropDown.Layout.Column = [1 2];
 
+axisLabel = uilabel(controlsGrid, 'Text', 'X-axis calibration');
+axisLabel.Layout.Row = 11;
+axisLabel.Layout.Column = [1 2];
+
+axisGrid = uigridlayout(controlsGrid, [2, 2]);
+axisGrid.RowHeight = {18, 32};
+axisGrid.ColumnWidth = {'1x', '1x'};
+axisGrid.RowSpacing = 4;
+axisGrid.ColumnSpacing = 8;
+axisGrid.Padding = [0 0 0 0];
+axisGrid.Layout.Row = 12;
+axisGrid.Layout.Column = [1 2];
+
+swLabel = uilabel(axisGrid, 'Text', 'SW (ppm)');
+swLabel.Layout.Row = 1;
+swLabel.Layout.Column = 1;
+swField = uieditfield(axisGrid, 'numeric', ...
+    'Value', axisSettings.swPpm, ...
+    'ValueChangedFcn', @(~, ~) onAxisSettingsChanged());
+swField.Layout.Row = 2;
+swField.Layout.Column = 1;
+
+o1Label = uilabel(axisGrid, 'Text', 'O1 (ppm)');
+o1Label.Layout.Row = 1;
+o1Label.Layout.Column = 2;
+o1Field = uieditfield(axisGrid, 'numeric', ...
+    'Value', axisSettings.o1Ppm, ...
+    'ValueChangedFcn', @(~, ~) onAxisSettingsChanged());
+o1Field.Layout.Row = 2;
+o1Field.Layout.Column = 2;
+
+ppmAxisCheck = uicheckbox(controlsGrid, ...
+    'Text', 'Display x-axis in ppm', ...
+    'Value', axisSettings.usePpm, ...
+    'ValueChangedFcn', @(~, ~) onAxisSettingsChanged());
+ppmAxisCheck.Layout.Row = 13;
+ppmAxisCheck.Layout.Column = [1 2];
+
 previewButton = uibutton(controlsGrid, 'push', ...
     'Text', 'Preview range', 'ButtonPushedFcn', @(~, ~) onPreviewRange());
-previewButton.Layout.Row = 11;
+previewButton.Layout.Row = 14;
 previewButton.Layout.Column = [1 2];
 
 saveButton = uibutton(controlsGrid, 'push', ...
     'Text', 'Save range', 'ButtonPushedFcn', @(~, ~) onSaveRange());
-saveButton.Layout.Row = 12;
+saveButton.Layout.Row = 15;
 saveButton.Layout.Column = [1 2];
 
 plotButton = uibutton(controlsGrid, 'push', ...
     'Text', 'Pick range on plot', 'Tooltip', {'Select two points on the spectrum plot.'}, ...
     'ButtonPushedFcn', @(~, ~) onPickRangeFromPlot());
-plotButton.Layout.Row = 13;
+plotButton.Layout.Row = 16;
 plotButton.Layout.Column = [1 2];
 
 phaseButton = uibutton(controlsGrid, 'push', ...
     'Text', 'Phase selected voxel', 'ButtonPushedFcn', @(~, ~) onOpenPhaseWindow());
-phaseButton.Layout.Row = 14;
+phaseButton.Layout.Row = 17;
 phaseButton.Layout.Column = [1 2];
 
 conversionButton = uibutton(controlsGrid, 'push', ...
     'Text', 'Calculate convertion', 'ButtonPushedFcn', @(~, ~) onOpenConversionWindow());
-conversionButton.Layout.Row = 15;
+conversionButton.Layout.Row = 18;
 conversionButton.Layout.Column = [1 2];
 
 saveVolumeButton = uibutton(controlsGrid, 'push', ...
     'Text', 'Save 3D volume', 'ButtonPushedFcn', @(~, ~) onSaveVolume());
-saveVolumeButton.Layout.Row = 16;
+saveVolumeButton.Layout.Row = 19;
 saveVolumeButton.Layout.Column = [1 2];
 
 savedRangeLabel = uilabel(controlsGrid, ...
     'Text', sprintf('Saved range: [%d, %d]', savedRange(1), savedRange(2)), ...
     'WordWrap', 'on');
-savedRangeLabel.Layout.Row = 17;
+savedRangeLabel.Layout.Row = 20;
 savedRangeLabel.Layout.Column = [1 2];
 
 statusLabel = uilabel(mainGrid, ...
@@ -242,12 +281,33 @@ updateAllViews();
         end
     end
 
+    function onAxisSettingsChanged()
+        previousSettings = axisSettings;
+        try
+            axisSettings.swPpm = validateSpectralAxisNumber(swField.Value, 'SW', true);
+            axisSettings.o1Ppm = validateSpectralAxisNumber(o1Field.Value, 'O1', false);
+            axisSettings.usePpm = logical(ppmAxisCheck.Value);
+            writeAxisSettingsToMeta();
+            assignin('base', info.metaVarName, meta);
+            statusLabel.Text = sprintf('X-axis display: %s.', axisModeLabel(axisSettings));
+            updateSpectrumPlot();
+        catch ME
+            axisSettings = previousSettings;
+            swField.Value = axisSettings.swPpm;
+            o1Field.Value = axisSettings.o1Ppm;
+            ppmAxisCheck.Value = axisSettings.usePpm;
+            uialert(fig, ME.message, 'Error');
+        end
+    end
+
     function onOpenPhaseWindow()
+        writeAxisSettingsToMeta();
         info.meta = meta;
         openPhaseCorrectionFigure(info, [current.x, current.y, current.z], previewRange, @onPhaseSaved);
     end
 
     function onOpenConversionWindow()
+        writeAxisSettingsToMeta();
         info.meta = meta;
         info.meta.currentSpectralValueMode = valueMode;
         openSpectralConversionFigure(info, [current.x, current.y, current.z]);
@@ -359,18 +419,19 @@ updateAllViews();
     function updateSpectrumPlot()
         cla(spectrumAxes);
         spec = extractSpectrumTrace(correctedSpectrum4D(:, current.x, current.y, current.z), valueMode);
-        hSpec = plot(spectrumAxes, spec, 'b-', 'LineWidth', 1.2);
+        [xValues, xAxisLabel] = spectralAxisValues(axisSettings, nSpec);
+        hSpec = plot(spectrumAxes, xValues, spec, 'b-', 'LineWidth', 1.2);
         title(spectrumAxes, sprintf('Spectrum %s (%d, %d, %d)', valueModeToItem(valueMode), ...
             current.x, current.y, current.z));
-        xlabel(spectrumAxes, 'Spectral point');
+        xlabel(spectrumAxes, xAxisLabel);
         ylabel(spectrumAxes, spectrumYAxisLabel(valueMode));
         grid(spectrumAxes, 'on');
         hold(spectrumAxes, 'on');
-        xline(spectrumAxes, previewRange(1), '--r', 'Start');
-        xline(spectrumAxes, previewRange(2), '--r', 'End');
+        xline(spectrumAxes, spectralIndexToAxis(previewRange(1), axisSettings, nSpec), '--r', 'Start');
+        xline(spectrumAxes, spectralIndexToAxis(previewRange(2), axisSettings, nSpec), '--r', 'End');
         if ~isempty(pickedRangePoints)
             for iPoint = 1:numel(pickedRangePoints)
-                xline(spectrumAxes, pickedRangePoints(iPoint), ':k');
+                xline(spectrumAxes, spectralIndexToAxis(pickedRangePoints(iPoint), axisSettings, nSpec), ':k');
             end
         end
         hold(spectrumAxes, 'off');
@@ -402,7 +463,7 @@ updateAllViews();
             xClick = point(1, 1);
         end
 
-        xClick = clampIndex(xClick, nSpec);
+        xClick = clampIndex(spectralAxisToIndex(xClick, axisSettings, nSpec), nSpec);
         pickedRangePoints(end + 1) = xClick;
 
         if numel(pickedRangePoints) >= 2
@@ -419,6 +480,12 @@ updateAllViews();
         end
 
         updateSpectrumPlot();
+    end
+
+    function writeAxisSettingsToMeta()
+        meta.spectralAxisUsePpm = logical(axisSettings.usePpm);
+        meta.spectralSWPpm = double(axisSettings.swPpm);
+        meta.spectralO1Ppm = double(axisSettings.o1Ppm);
     end
 end
 
@@ -484,5 +551,24 @@ if strcmpi(valueMode, 'real')
     modeLabel = 'sum(real(spectrum4D(idxRange,:,:,:)),1)';
 else
     modeLabel = 'sum(abs(spectrum4D(idxRange,:,:,:)),1)';
+end
+end
+
+function value = validateSpectralAxisNumber(value, fieldName, mustBePositive)
+value = double(value);
+if ~isscalar(value) || ~isfinite(value)
+    error('%s must be a finite numeric value.', fieldName);
+end
+
+if mustBePositive && value <= 0
+    error('%s must be greater than zero.', fieldName);
+end
+end
+
+function label = axisModeLabel(axisSettings)
+if axisSettings.usePpm
+    label = sprintf('ppm (SW %.6g, O1 %.6g)', axisSettings.swPpm, axisSettings.o1Ppm);
+else
+    label = 'spectral point';
 end
 end

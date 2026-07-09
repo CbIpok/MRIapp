@@ -8,6 +8,7 @@ end
 spectrum4D = info.spectrum4D;
 meta = info.meta;
 nSpec = size(spectrum4D, 1);
+axisSettings = getSpectralAxisSettings(meta, nSpec);
 
 if nargin < 2 || isempty(currentVoxel)
     currentVoxel = [1, 1, 1];
@@ -328,23 +329,24 @@ updatePlot();
     function updatePlot()
         spectrum = squeeze(spectrum4D(:, voxelX, voxelY, voxelZ));
         corrected = applyPhaseCorrection(spectrum, ph0Deg, ph1Deg, pivotIndex);
+        [xValues, xAxisLabel] = spectralAxisValues(axisSettings, nSpec);
 
         cla(specAxes);
         hold(specAxes, 'on');
         if showOriginalCheck.Value
-            plot(specAxes, real(spectrum), 'Color', [0.6 0.6 0.6], 'DisplayName', 'Original Re');
+            plot(specAxes, xValues, real(spectrum), 'Color', [0.6 0.6 0.6], 'DisplayName', 'Original Re');
         end
-        hCorr = plot(specAxes, real(corrected), 'b-', 'LineWidth', 1.4, 'DisplayName', 'Corrected Re');
+        hCorr = plot(specAxes, xValues, real(corrected), 'b-', 'LineWidth', 1.4, 'DisplayName', 'Corrected Re');
         if showImagCheck.Value
-            plot(specAxes, imag(corrected), 'm--', 'DisplayName', 'Corrected Im');
+            plot(specAxes, xValues, imag(corrected), 'm--', 'DisplayName', 'Corrected Im');
         end
         if showPivotCheck.Value
-            xline(specAxes, pivotIndex, '--r', 'Pivot', 'LineWidth', 1.2);
+            xline(specAxes, spectralIndexToAxis(pivotIndex, axisSettings, nSpec), '--r', 'Pivot', 'LineWidth', 1.2);
         end
         hold(specAxes, 'off');
 
         grid(specAxes, 'on');
-        xlabel(specAxes, 'Spectral point');
+        xlabel(specAxes, xAxisLabel);
         ylabel(specAxes, 'Signal');
         title(specAxes, sprintf('Voxel (%d, %d, %d), PH0=%.1f, PH1=%.1f, pivot=%d', ...
             voxelX, voxelY, voxelZ, ph0Deg, ph1Deg, pivotIndex));
@@ -378,7 +380,7 @@ updatePlot();
             xClick = pt(1, 1);
         end
 
-        pivotIndex = clampPhaseIndex(xClick, nSpec);
+        pivotIndex = clampPhaseIndex(spectralAxisToIndex(xClick, axisSettings, nSpec), nSpec);
         pivotField.Value = pivotIndex;
         setPivotFromClick = false;
         statusLabel.Text = sprintf('Pivot set to %d. Adjust PH0/PH1 and save when ready.', pivotIndex);

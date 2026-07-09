@@ -6,6 +6,7 @@ meta = info.meta;
 valueMode = getSpectralValueMode(meta);
 
 [nSpec, nX, nY, nZ] = size(spectrum4D);
+axisSettings = getSpectralAxisSettings(meta, nSpec);
 if nargin < 2 || isempty(currentVoxel)
     currentVoxel = [ceil(nX / 2), ceil(nY / 2), ceil(nZ / 2)];
 end
@@ -539,17 +540,18 @@ refreshAll();
     function updateSpectrumPlot()
         cla(spectrumAxes);
         currentSpectrum = conversionSpectrumValues(correctedSpectrum4D(:, current.x, current.y, current.z), valueMode);
-        hSpec = plot(spectrumAxes, currentSpectrum, 'b-', 'LineWidth', 1.2);
+        [xValues, xAxisLabel] = spectralAxisValues(axisSettings, nSpec);
+        hSpec = plot(spectrumAxes, xValues, currentSpectrum, 'b-', 'LineWidth', 1.2);
         title(spectrumAxes, sprintf('Spectrum %s (%d, %d, %d)', conversionValueModeToItem(valueMode), ...
             current.x, current.y, current.z));
-        xlabel(spectrumAxes, 'Spectral point');
+        xlabel(spectrumAxes, xAxisLabel);
         ylabel(spectrumAxes, conversionSpectrumLabel(valueMode));
         grid(spectrumAxes, 'on');
         hold(spectrumAxes, 'on');
         plotDefinitionRanges();
         if ~isempty(pickedRangePoints)
             for iPoint = 1:numel(pickedRangePoints)
-                xline(spectrumAxes, pickedRangePoints(iPoint), ':k');
+                xline(spectrumAxes, spectralIndexToAxis(pickedRangePoints(iPoint), axisSettings, nSpec), ':k');
             end
         end
         hold(spectrumAxes, 'off');
@@ -564,8 +566,8 @@ refreshAll();
         for iDef = 1:numel(definitions)
             c = colors(iDef, :);
             drawRangePatch(definitions(iDef).startIndex, definitions(iDef).endIndex, c, 0.08);
-            xline(spectrumAxes, definitions(iDef).startIndex, '-', 'Color', c, 'Alpha', 0.25);
-            xline(spectrumAxes, definitions(iDef).endIndex, '-', 'Color', c, 'Alpha', 0.25);
+            xline(spectrumAxes, spectralIndexToAxis(definitions(iDef).startIndex, axisSettings, nSpec), '-', 'Color', c, 'Alpha', 0.25);
+            xline(spectrumAxes, spectralIndexToAxis(definitions(iDef).endIndex, axisSettings, nSpec), '-', 'Color', c, 'Alpha', 0.25);
         end
 
         if ~isempty(selectedDefinitionIndex) && selectedDefinitionIndex >= 1 && selectedDefinitionIndex <= numel(definitions)
@@ -585,9 +587,11 @@ refreshAll();
         if ~all(isfinite(yLimits)) || yLimits(2) <= yLimits(1)
             yLimits = [0, 1];
         end
+        xStart = spectralIndexToAxis(startIndex, axisSettings, nSpec);
+        xEnd = spectralIndexToAxis(endIndex, axisSettings, nSpec);
 
         patch(spectrumAxes, ...
-            [startIndex, endIndex, endIndex, startIndex], ...
+            [xStart, xEnd, xEnd, xStart], ...
             [yLimits(1), yLimits(1), yLimits(2), yLimits(2)], ...
             colorValue, 'FaceAlpha', alphaValue, 'EdgeColor', 'none');
     end
@@ -600,10 +604,12 @@ refreshAll();
 
         previewColor = [0.1, 0.8, 0.55];
         drawRangePatch(startIndex, endIndex, previewColor, 0.22);
-        xline(spectrumAxes, startIndex, '--', 'Color', previewColor, 'LineWidth', 1.4);
-        xline(spectrumAxes, endIndex, '--', 'Color', previewColor, 'LineWidth', 1.4);
+        xStart = spectralIndexToAxis(startIndex, axisSettings, nSpec);
+        xEnd = spectralIndexToAxis(endIndex, axisSettings, nSpec);
+        xline(spectrumAxes, xStart, '--', 'Color', previewColor, 'LineWidth', 1.4);
+        xline(spectrumAxes, xEnd, '--', 'Color', previewColor, 'LineWidth', 1.4);
 
-        textX = startIndex + (endIndex - startIndex) / 2;
+        textX = xStart + (xEnd - xStart) / 2;
         textY = yLimits(1) + 0.92 * (yLimits(2) - yLimits(1));
         text(spectrumAxes, textX, textY, 'preview range', ...
             'HorizontalAlignment', 'center', ...
@@ -638,7 +644,7 @@ refreshAll();
             xClick = point(1, 1);
         end
 
-        xClick = clampConversionIndex(xClick, nSpec);
+        xClick = clampConversionIndex(spectralAxisToIndex(xClick, axisSettings, nSpec), nSpec);
         pickedRangePoints(end + 1) = xClick;
 
         if numel(pickedRangePoints) >= 2
