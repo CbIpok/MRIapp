@@ -719,13 +719,7 @@ refreshAll();
 end
 
 function correctedSpectrum4D = applyMetaPhaseIfNeeded(spectrum4D, meta)
-correctedSpectrum4D = spectrum4D;
-if isstruct(meta) && isfield(meta, 'phaseEnabled') && meta.phaseEnabled ...
-        && isfield(meta, 'phaseParams') && isstruct(meta.phaseParams)
-    params = meta.phaseParams;
-    correctedSpectrum4D = applyPhaseCorrection(spectrum4D, ...
-        params.ph0Deg, params.ph1Deg, params.pivotIndex);
-end
+correctedSpectrum4D = applyStoredPhaseCorrection(spectrum4D, meta);
 end
 
 function definitions = loadInitialDefinitions(meta, nSpec)

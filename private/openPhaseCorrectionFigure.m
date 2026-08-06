@@ -31,6 +31,18 @@ else
     pivotIndex = round(nSpec / 2);
 end
 
+if isfield(meta, 'phaseMode') && strcmpi(string(meta.phaseMode), "voxelwise") ...
+        && isfield(meta, 'phaseMaps') && isstruct(meta.phaseMaps)
+    maps = meta.phaseMaps;
+    try
+        ph0Deg = maps.ph0Deg(voxelX, voxelY, voxelZ);
+        ph1Deg = maps.ph1Deg(voxelX, voxelY, voxelZ);
+        pivotIndex = maps.pivotIndex(voxelX, voxelY, voxelZ);
+    catch
+        % Keep the global parameters if saved maps do not match this dataset.
+    end
+end
+
 if isfield(meta, 'phaseUiRanges') && isstruct(meta.phaseUiRanges)
     ph0Limits = normalizeSliderLimits(meta.phaseUiRanges.ph0, [-360, 360]);
     ph1Limits = normalizeSliderLimits(meta.phaseUiRanges.ph1, [-720, 720]);
@@ -39,12 +51,13 @@ else
     ph1Limits = [-720, 720];
 end
 
-ph0Deg = clampToLimits(ph0Deg, ph0Limits);
-ph1Deg = clampToLimits(ph1Deg, ph1Limits);
+[ph0Limits, ph0Deg] = expandLimitsForValue(ph0Limits, ph0Deg);
+[ph1Limits, ph1Deg] = expandLimitsForValue(ph1Limits, ph1Deg);
 
 setPivotFromClick = false;
 activePhaseTarget = 'ph0';
 phaseStep = 0.5;
+progressDialog = [];
 
 fig = uifigure('Name', ['Phase correction: ' info.varName], 'Position', [120 120 1180 720]);
 movegui(fig, 'center');
@@ -55,8 +68,8 @@ specAxes = uiaxes(fig, 'Position', [260 90 890 600]);
 leftPanel = uipanel(fig, 'Title', 'Phase Controls', 'Position', [15 90 225 600], ...
     'Scrollable', 'on');
 
-controlsGrid = uigridlayout(leftPanel, [14, 1]);
-controlsGrid.RowHeight = {32, 20, 32, 32, 20, 32, 32, 32, 24, 24, 24, 34, 34, '1x'};
+controlsGrid = uigridlayout(leftPanel, [16, 1]);
+controlsGrid.RowHeight = {32, 20, 32, 32, 20, 32, 32, 32, 24, 24, 24, 32, 34, 34, 34, '1x'};
 controlsGrid.ColumnWidth = {'1x'};
 controlsGrid.RowSpacing = 8;
 controlsGrid.ColumnSpacing = 0;
@@ -173,14 +186,33 @@ showPivotCheck = uicheckbox(controlsGrid, ...
 showPivotCheck.Layout.Row = 11;
 showPivotCheck.Layout.Column = 1;
 
+algorithmRow = uigridlayout(controlsGrid, [1, 2]);
+algorithmRow.RowHeight = {22};
+algorithmRow.ColumnWidth = {70, '1x'};
+algorithmRow.Padding = [0 0 0 0];
+algorithmRow.Layout.Row = 12;
+algorithmRow.Layout.Column = 1;
+uilabel(algorithmRow, 'Text', 'Auto method');
+algorithmDropDown = uidropdown(algorithmRow, ...
+    'Items', {'ACME', 'Peak minima'}, ...
+    'ItemsData', {'acme', 'peak_minima'}, ...
+    'Value', 'acme');
+algorithmDropDown.Layout.Row = 1;
+algorithmDropDown.Layout.Column = 2;
+
+autoPhaseButton = uibutton(controlsGrid, 'push', ...
+    'Text', 'Auto phase all voxels', 'ButtonPushedFcn', @(~, ~) onAutoPhaseAll());
+autoPhaseButton.Layout.Row = 13;
+autoPhaseButton.Layout.Column = 1;
+
 saveButton = uibutton(controlsGrid, 'push', ...
-    'Text', 'Save phase params', 'ButtonPushedFcn', @(~, ~) onSavePhase());
-saveButton.Layout.Row = 12;
+    'Text', 'Apply manual phase globally', 'ButtonPushedFcn', @(~, ~) onSavePhase());
+saveButton.Layout.Row = 14;
 saveButton.Layout.Column = 1;
 
 resetButton = uibutton(controlsGrid, 'push', ...
     'Text', 'Reset phase', 'ButtonPushedFcn', @(~, ~) onResetPhase());
-resetButton.Layout.Row = 13;
+resetButton.Layout.Row = 15;
 resetButton.Layout.Column = 1;
 
 statusLabel = uilabel(fig, 'Position', [15 20 1130 22], ...
@@ -400,8 +432,95 @@ updatePlot();
         updatePlot();
     end
 
+    function onAutoPhaseAll()
+        initialParams = struct( ...
+            'ph0Deg', ph0Deg, ...
+            'ph1Deg', ph1Deg, ...
+            'pivotIndex', pivotIndex);
+        algorithm = algorithmDropDown.Value;
+
+        try
+            progressDialog = uiprogressdlg(fig, ...
+                'Title', 'Automatic phase correction', ...
+                'Message', 'Preparing voxel-wise optimization...', ...
+                'Value', 0);
+            [phaseMaps, summary] = autoPhaseVolume( ...
+                spectrum4D, algorithm, initialParams, @updateAutoPhaseProgress);
+
+            meta.phaseEnabled = true;
+            meta.phaseMode = 'voxelwise';
+            meta.phaseMaps = phaseMaps;
+            meta.phaseParams = struct( ...
+                'ph0Deg', initialParams.ph0Deg, ...
+                'ph1Deg', initialParams.ph1Deg, ...
+                'pivotIndex', initialParams.pivotIndex, ...
+                'voxel', [voxelX, voxelY, voxelZ], ...
+                'updatedAt', char(datetime('now')));
+            meta.autoPhaseAlgorithm = algorithm;
+            meta.autoPhaseSummary = summary;
+
+            ph0Deg = phaseMaps.ph0Deg(voxelX, voxelY, voxelZ);
+            ph1Deg = phaseMaps.ph1Deg(voxelX, voxelY, voxelZ);
+            pivotIndex = phaseMaps.pivotIndex(voxelX, voxelY, voxelZ);
+            [ph0Limits, ph0Deg] = expandLimitsForValue(ph0Slider.Limits, ph0Deg);
+            [ph1Limits, ph1Deg] = expandLimitsForValue(ph1Slider.Limits, ph1Deg);
+            ph0Slider.Limits = ph0Limits;
+            ph1Slider.Limits = ph1Limits;
+            ph0MinField.Value = ph0Limits(1);
+            ph0MaxField.Value = ph0Limits(2);
+            ph1MinField.Value = ph1Limits(1);
+            ph1MaxField.Value = ph1Limits(2);
+            ph0Field.Value = ph0Deg;
+            ph0Slider.Value = ph0Deg;
+            ph1Field.Value = ph1Deg;
+            ph1Slider.Value = ph1Deg;
+            pivotField.Value = pivotIndex;
+            meta.phaseUiRanges = struct('ph0', ph0Limits, 'ph1', ph1Limits);
+
+            savedRange = phaseSavedRange(meta, activeRange, nSpec);
+            [updatedVolume, ~] = buildIntegratedVolumeFromSpectrum( ...
+                spectrum4D, savedRange(1):savedRange(2), meta);
+            assignin('base', info.metaVarName, meta);
+            assignin('base', info.varName, updatedVolume);
+
+            if ~isempty(onSaveCallback)
+                onSaveCallback(updatedVolume, meta);
+            end
+
+            closeProgressDialog();
+            statusLabel.Text = sprintf( ...
+                'Auto phase (%s): %d optimized, %d kept at manual values.', ...
+                autoPhaseAlgorithmLabel(algorithm), summary.successCount, summary.fallbackCount);
+            updatePlot();
+        catch ME
+            closeProgressDialog();
+            uialert(fig, ME.message, 'Automatic phase correction error');
+        end
+    end
+
+    function updateAutoPhaseProgress(completedCount, totalCount)
+        if isempty(progressDialog) || ~isvalid(progressDialog)
+            return;
+        end
+        progressDialog.Value = min(1, completedCount / max(1, totalCount));
+        progressDialog.Message = sprintf( ...
+            'Optimizing voxel %d of %d...', completedCount, totalCount);
+        drawnow limitrate;
+    end
+
+    function closeProgressDialog()
+        if ~isempty(progressDialog) && isvalid(progressDialog)
+            close(progressDialog);
+        end
+        progressDialog = [];
+    end
+
     function onSavePhase()
         meta.phaseEnabled = true;
+        meta.phaseMode = 'global';
+        meta.phaseMaps = [];
+        meta.autoPhaseAlgorithm = '';
+        meta.autoPhaseSummary = [];
         meta.phaseParams = struct( ...
             'ph0Deg', ph0Deg, ...
             'ph1Deg', ph1Deg, ...
@@ -410,13 +529,7 @@ updatePlot();
             'updatedAt', char(datetime('now')));
         meta.phaseUiRanges = struct('ph0', ph0Slider.Limits, 'ph1', ph1Slider.Limits);
 
-        if isfield(meta, 'currentSpectralRange') && ~isempty(meta.currentSpectralRange)
-            savedRange = meta.currentSpectralRange;
-        else
-            savedRange = activeRange;
-        end
-
-        savedRange = normalizePhaseRange(savedRange, nSpec);
+        savedRange = phaseSavedRange(meta, activeRange, nSpec);
         [updatedVolume, ~] = buildIntegratedVolumeFromSpectrum( ...
             spectrum4D, savedRange(1):savedRange(2), meta);
 
@@ -427,7 +540,9 @@ updatePlot();
             onSaveCallback(updatedVolume, meta);
         end
 
-        statusLabel.Text = sprintf('Saved PH0=%.1f, PH1=%.1f, pivot=%d.', ph0Deg, ph1Deg, pivotIndex);
+        statusLabel.Text = sprintf( ...
+            'Applied global manual PH0=%.1f, PH1=%.1f, pivot=%d; voxel maps cleared.', ...
+            ph0Deg, ph1Deg, pivotIndex);
     end
 end
 
@@ -462,4 +577,32 @@ values = sort(values(1:2));
 values(1) = max(1, min(nSpec, values(1)));
 values(2) = max(1, min(nSpec, values(2)));
 range = values;
+end
+
+function range = phaseSavedRange(meta, activeRange, nSpec)
+if isfield(meta, 'currentSpectralRange') && ~isempty(meta.currentSpectralRange)
+    range = meta.currentSpectralRange;
+else
+    range = activeRange;
+end
+range = normalizePhaseRange(range, nSpec);
+end
+
+function [limits, value] = expandLimitsForValue(limits, value)
+value = double(value);
+if value < limits(1)
+    limits(1) = floor(value);
+elseif value > limits(2)
+    limits(2) = ceil(value);
+end
+limits = normalizeSliderLimits(limits, [-1, 1]);
+value = clampToLimits(value, limits);
+end
+
+function label = autoPhaseAlgorithmLabel(algorithm)
+if strcmpi(algorithm, 'peak_minima')
+    label = 'Peak minima';
+else
+    label = 'ACME';
+end
 end
