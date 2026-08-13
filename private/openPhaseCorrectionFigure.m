@@ -68,8 +68,8 @@ specAxes = uiaxes(fig, 'Position', [260 90 890 600]);
 leftPanel = uipanel(fig, 'Title', 'Phase Controls', 'Position', [15 90 225 600], ...
     'Scrollable', 'on');
 
-controlsGrid = uigridlayout(leftPanel, [16, 1]);
-controlsGrid.RowHeight = {32, 20, 32, 32, 20, 32, 32, 32, 24, 24, 24, 32, 34, 34, 34, '1x'};
+controlsGrid = uigridlayout(leftPanel, [17, 1]);
+controlsGrid.RowHeight = {32, 20, 32, 32, 20, 32, 32, 32, 24, 24, 24, 32, 32, 34, 34, 34, '1x'};
 controlsGrid.ColumnWidth = {'1x'};
 controlsGrid.RowSpacing = 8;
 controlsGrid.ColumnSpacing = 0;
@@ -200,19 +200,33 @@ algorithmDropDown = uidropdown(algorithmRow, ...
 algorithmDropDown.Layout.Row = 1;
 algorithmDropDown.Layout.Column = 2;
 
+scopeRow = uigridlayout(controlsGrid, [1, 2]);
+scopeRow.RowHeight = {22};
+scopeRow.ColumnWidth = {70, '1x'};
+scopeRow.Padding = [0 0 0 0];
+scopeRow.Layout.Row = 13;
+scopeRow.Layout.Column = 1;
+uilabel(scopeRow, 'Text', 'Apply to');
+scopeDropDown = uidropdown(scopeRow, ...
+    'Items', {'Selected voxel', 'All voxels'}, ...
+    'ItemsData', {'selected', 'all'}, ...
+    'Value', 'selected');
+scopeDropDown.Layout.Row = 1;
+scopeDropDown.Layout.Column = 2;
+
 autoPhaseButton = uibutton(controlsGrid, 'push', ...
-    'Text', 'Auto phase all voxels', 'ButtonPushedFcn', @(~, ~) onAutoPhaseAll());
-autoPhaseButton.Layout.Row = 13;
+    'Text', 'Auto phase', 'ButtonPushedFcn', @(~, ~) onAutoPhase());
+autoPhaseButton.Layout.Row = 14;
 autoPhaseButton.Layout.Column = 1;
 
 saveButton = uibutton(controlsGrid, 'push', ...
-    'Text', 'Apply manual phase globally', 'ButtonPushedFcn', @(~, ~) onSavePhase());
-saveButton.Layout.Row = 14;
+    'Text', 'Apply manual phase', 'ButtonPushedFcn', @(~, ~) onSavePhase());
+saveButton.Layout.Row = 15;
 saveButton.Layout.Column = 1;
 
 resetButton = uibutton(controlsGrid, 'push', ...
     'Text', 'Reset phase', 'ButtonPushedFcn', @(~, ~) onResetPhase());
-resetButton.Layout.Row = 15;
+resetButton.Layout.Row = 16;
 resetButton.Layout.Column = 1;
 
 statusLabel = uilabel(fig, 'Position', [15 20 1130 22], ...
@@ -432,20 +446,41 @@ updatePlot();
         updatePlot();
     end
 
-    function onAutoPhaseAll()
+    function onAutoPhase()
         initialParams = struct( ...
             'ph0Deg', ph0Deg, ...
             'ph1Deg', ph1Deg, ...
             'pivotIndex', pivotIndex);
         algorithm = algorithmDropDown.Value;
+        scope = scopeDropDown.Value;
+        spatialSize = [size(spectrum4D, 2), size(spectrum4D, 3), size(spectrum4D, 4)];
 
         try
-            progressDialog = uiprogressdlg(fig, ...
-                'Title', 'Automatic phase correction', ...
-                'Message', 'Preparing voxel-wise optimization...', ...
-                'Value', 0);
-            [phaseMaps, summary] = autoPhaseVolume( ...
-                spectrum4D, algorithm, initialParams, @updateAutoPhaseProgress);
+            if strcmp(scope, 'all')
+                progressDialog = uiprogressdlg(fig, ...
+                    'Title', 'Automatic phase correction', ...
+                    'Message', 'Preparing voxel-wise optimization...', ...
+                    'Value', 0);
+                [phaseMaps, summary] = autoPhaseVolume( ...
+                    spectrum4D, algorithm, initialParams, @updateAutoPhaseProgress);
+                summary.scope = 'all';
+            else
+                phaseMaps = materializePhaseMaps(meta, spatialSize, nSpec);
+                selectedSpectrum = spectrum4D(:, voxelX, voxelY, voxelZ);
+                [optimizedParams, phaseInfo] = autoPhaseSpectrum( ...
+                    selectedSpectrum, algorithm, initialParams);
+                phaseMaps.ph0Deg(voxelX, voxelY, voxelZ) = optimizedParams.ph0Deg;
+                phaseMaps.ph1Deg(voxelX, voxelY, voxelZ) = optimizedParams.ph1Deg;
+                phaseMaps.pivotIndex(voxelX, voxelY, voxelZ) = optimizedParams.pivotIndex;
+                phaseMaps.successMask(voxelX, voxelY, voxelZ) = phaseInfo.success;
+                phaseMaps.algorithm = algorithm;
+                summary = struct( ...
+                    'algorithm', algorithm, ...
+                    'scope', 'selected', ...
+                    'totalVoxels', 1, ...
+                    'successCount', double(phaseInfo.success), ...
+                    'fallbackCount', double(~phaseInfo.success));
+            end
 
             meta.phaseEnabled = true;
             meta.phaseMode = 'voxelwise';
@@ -488,9 +523,20 @@ updatePlot();
             end
 
             closeProgressDialog();
-            statusLabel.Text = sprintf( ...
-                'Auto phase (%s): %d optimized, %d kept at manual values.', ...
-                autoPhaseAlgorithmLabel(algorithm), summary.successCount, summary.fallbackCount);
+            if strcmp(scope, 'all')
+                statusLabel.Text = sprintf( ...
+                    'Auto phase all (%s): %d optimized, %d kept at manual values.', ...
+                    autoPhaseAlgorithmLabel(algorithm), ...
+                    summary.successCount, summary.fallbackCount);
+            elseif summary.successCount == 1
+                statusLabel.Text = sprintf( ...
+                    'Auto phase voxel (%d, %d, %d) completed using %s.', ...
+                    voxelX, voxelY, voxelZ, autoPhaseAlgorithmLabel(algorithm));
+            else
+                statusLabel.Text = sprintf( ...
+                    'Auto phase voxel (%d, %d, %d) failed; manual values were applied.', ...
+                    voxelX, voxelY, voxelZ);
+            end
             updatePlot();
         catch ME
             closeProgressDialog();
@@ -516,10 +562,27 @@ updatePlot();
     end
 
     function onSavePhase()
+        scope = scopeDropDown.Value;
+        spatialSize = [size(spectrum4D, 2), size(spectrum4D, 3), size(spectrum4D, 4)];
+        if strcmp(scope, 'selected')
+            phaseMaps = materializePhaseMaps(meta, spatialSize, nSpec);
+            phaseMaps.ph0Deg(voxelX, voxelY, voxelZ) = ph0Deg;
+            phaseMaps.ph1Deg(voxelX, voxelY, voxelZ) = ph1Deg;
+            phaseMaps.pivotIndex(voxelX, voxelY, voxelZ) = pivotIndex;
+            phaseMaps.successMask(voxelX, voxelY, voxelZ) = false;
+            phaseMaps.algorithm = 'mixed';
+        end
+
         meta.phaseEnabled = true;
-        meta.phaseMode = 'global';
-        meta.phaseMaps = [];
-        meta.autoPhaseAlgorithm = '';
+        if strcmp(scope, 'all')
+            meta.phaseMode = 'global';
+            meta.phaseMaps = [];
+            meta.autoPhaseAlgorithm = '';
+        else
+            meta.phaseMode = 'voxelwise';
+            meta.phaseMaps = phaseMaps;
+            meta.autoPhaseAlgorithm = 'mixed';
+        end
         meta.autoPhaseSummary = [];
         meta.phaseParams = struct( ...
             'ph0Deg', ph0Deg, ...
@@ -540,9 +603,15 @@ updatePlot();
             onSaveCallback(updatedVolume, meta);
         end
 
-        statusLabel.Text = sprintf( ...
-            'Applied global manual PH0=%.1f, PH1=%.1f, pivot=%d; voxel maps cleared.', ...
-            ph0Deg, ph1Deg, pivotIndex);
+        if strcmp(scope, 'all')
+            statusLabel.Text = sprintf( ...
+                'Applied manual PH0=%.1f, PH1=%.1f, pivot=%d to all voxels.', ...
+                ph0Deg, ph1Deg, pivotIndex);
+        else
+            statusLabel.Text = sprintf( ...
+                'Applied manual PH0=%.1f, PH1=%.1f, pivot=%d to voxel (%d, %d, %d).', ...
+                ph0Deg, ph1Deg, pivotIndex, voxelX, voxelY, voxelZ);
+        end
     end
 end
 
