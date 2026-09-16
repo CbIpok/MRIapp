@@ -5,6 +5,16 @@ function [varName, array3D, extras, meta] = loadVolumeForApp(fullPath, dimX, dim
 varName = matlab.lang.makeValidName(fileName);
 ext = lower(ext);
 
+if strcmpi([fileName ext], '2dseq')
+    [array3D, meta, rawData] = readBruker2dseq(fullPath);
+    extras = struct('rawData', rawData);
+    meta.sourceKind = 'bruker2dseq';
+    meta.workspaceVarName = varName;
+    meta.rawVarName = [varName '__raw'];
+    meta.metaVarName = [varName '__meta'];
+    return;
+end
+
 switch ext
     case {'.64', '.ser'}
         [array3D, spectrum4D, spectralMeta] = loadSpectralVolume(fullPath, dimX, dimY, dimZ);

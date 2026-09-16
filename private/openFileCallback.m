@@ -5,7 +5,7 @@ function openFileCallback(edt1, edt2, edt3, listBox)
 
     [fileName, pathName] = uigetfile( ...
         {'*.bin;*.dat;*.64;*.ser;*.*', ...
-        'Volumes and spectra (*.bin, *.dat, *.64, *.ser, ...)'}, ...
+        'Volumes, spectra and Bruker 2dseq (*.bin, *.dat, *.64, *.ser, 2dseq, ...)'}, ...
         'Выберите файл объёма или спектра');
 
     if isequal(fileName, 0)
@@ -22,11 +22,31 @@ function openFileCallback(edt1, edt2, edt3, listBox)
         return;
     end
 
+    if strcmp(meta.sourceKind, 'bruker2dseq')
+        % Different reconstructions all share the filename 2dseq.
+        existingNames = evalin('base', 'who');
+        baseName = varName;
+        suffix = 0;
+        while any(ismember({varName, [varName '__raw'], [varName '__meta']}, existingNames))
+            suffix = suffix + 1;
+            varName = sprintf('%s_%d', baseName, suffix);
+        end
+        meta.workspaceVarName = varName;
+        meta.rawVarName = [varName '__raw'];
+        meta.metaVarName = [varName '__meta'];
+    end
+
     assignin('base', varName, array3D);
     assignin('base', meta.metaVarName, meta);
 
     if isfield(extras, 'spectrum4D')
         assignin('base', meta.spectrumVarName, extras.spectrum4D);
+    end
+    if isfield(extras, 'rawData')
+        assignin('base', meta.rawVarName, extras.rawData);
+        if ~isempty(meta.notes)
+            warning('Bruker:MetadataFallback', '%s', strjoin(meta.notes, ' '));
+        end
     end
 
     newItem = sprintf('%s [%g, %g, %g]', ...
